@@ -362,11 +362,17 @@ with tab_setup:
         nuevo_obj = st.text_input("Nuevo Objeto")
         if st.button("➕ Agregar Objeto", use_container_width=True):
             if nuevo_obj:
-                nuevo_o = pd.DataFrame([{"Nombre_Objeto": nuevo_obj.strip()}])
-                df_objetos = pd.concat([df_objetos, nuevo_o], ignore_index=True)
-                conn.update(worksheet="Objetos", data=df_objetos)
-                st.success(f"Objeto '{nuevo_obj}' agregado.")
-                st.rerun()
+                obj_clean = nuevo_obj.strip()
+                objetos_existentes = df_objetos["Nombre_Objeto"].dropna().astype(str).str.strip().str.lower().tolist()
+
+                if obj_clean.lower() in objetos_existentes:
+                    st.error(f"❌ El objeto '{obj_clean}' ya existe en el catálogo de armas.")
+                else:
+                    nuevo_o = pd.DataFrame([{"Nombre_Objeto": obj_clean}])
+                    df_objetos = pd.concat([df_objetos, nuevo_o], ignore_index=True)
+                    conn.update(worksheet="Objetos", data=df_objetos)
+                    st.success(f"Objeto '{obj_clean}' agregado.")
+                    st.rerun()
         
         st.dataframe(df_objetos, hide_index=True, use_container_width=True)
 
