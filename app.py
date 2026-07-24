@@ -275,7 +275,7 @@ with tab_gestion:
                     pass  # Si la pestaña Historial no existe en Google Sheets, no rompe la app
 
                 st.success(f"🎉 ¡Baja registrada! {victima_actual} ha sido eliminado/a.")
-                st.info(f"Nueva víctima de **{asesino_sel}**: `{siguiente_victima}` con el arma `{siguiente_objeto}`.")
+                st.info(f"Nueva víctima de **{asesino_sel}** asignada.")
 
                 # 7. Enviar correo al asesino con sus nuevas órdenes
                 email_asesino = df_jugadores[df_jugadores["Nombre"] == asesino_sel]["Email"].iloc[0]
