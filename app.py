@@ -53,6 +53,7 @@ def cargar_datos():
 
     if "Fecha_Eliminacion" not in df_j.columns:
         df_j["Fecha_Eliminacion"] = ""
+    df_j["Fecha_Eliminacion"] = df_j["Fecha_Eliminacion"].astype(str).replace(["nan", "None"], "")
 
     return df_j, df_a, df_o, df_h
 
@@ -323,6 +324,7 @@ with tab_gestion:
                     siguiente_objeto = "N/A"
 
                 # 2. Actualizar estado de la víctima a 'Muerto' y guardar fecha de eliminación
+                df_jugadores["Fecha_Eliminacion"] = df_jugadores["Fecha_Eliminacion"].astype(str)
                 df_jugadores.loc[df_jugadores["Nombre"] == victima_actual, "Estado"] = "Muerto"
                 df_jugadores.loc[df_jugadores["Nombre"] == victima_actual, "Fecha_Eliminacion"] = now_str
                 
