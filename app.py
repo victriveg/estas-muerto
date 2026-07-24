@@ -316,8 +316,6 @@ with tab_gestion:
         if len(asig_actual) > 0:
             victima_actual = asig_actual.iloc[0]["Victima"]
             objeto_actual = asig_actual.iloc[0]["Objeto"]
-            
-            st.info(f"**Víctima actual de {asesino_sel}:** {victima_actual}  \n**Arma:** {objeto_actual}")
 
             if st.button("🔴 Confirmar Asesinato", type="primary", use_container_width=True):
                 now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
