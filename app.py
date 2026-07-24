@@ -1,0 +1,329 @@
+import streamlit as st
+from streamlit_gsheets import GSheetsConnection
+import pandas as pd
+import random
+from datetime import datetime
+import email_service
+
+# Configuración de página adaptada a móviles
+st.set_page_config(
+    page_title="Estás Muerto 🔪 - Panel de Control",
+    page_icon="🔪",
+    layout="centered"
+)
+
+st.title("🔪 Estás Muerto")
+st.caption("Panel de control para gestionar la partida desde tu móvil")
+
+# ---------------------------------------------------------
+# 1. CONEXIÓN Y LECTURA DE GOOGLE SHEETS
+# ---------------------------------------------------------
+conn = st.connection("gsheets", type=GSheetsConnection)
+
+def cargar_datos():
+    try:
+        df_j = conn.read(worksheet="Jugadores", ttl=0)
+    except Exception:
+        df_j = pd.DataFrame(columns=["Nombre", "Email", "Estado", "Bajas"])
+
+    try:
+        df_a = conn.read(worksheet="Asignaciones", ttl=0)
+    except Exception:
+        df_a = pd.DataFrame(columns=["Asesino", "Victima", "Objeto"])
+
+    try:
+        df_o = conn.read(worksheet="Objetos", ttl=0)
+    except Exception:
+        df_o = pd.DataFrame(columns=["Nombre_Objeto"])
+
+    try:
+        df_h = conn.read(worksheet="Historial", ttl=0)
+    except Exception:
+        df_h = pd.DataFrame(columns=["Fecha", "Asesino", "Victima", "Objeto"])
+
+    # Normalizar columnas vacías
+    if "Bajas" not in df_j.columns:
+        df_j["Bajas"] = 0
+    df_j["Bajas"] = pd.to_numeric(df_j["Bajas"], errors="coerce").fillna(0).astype(int)
+
+    return df_j, df_a, df_o, df_h
+
+df_jugadores, df_asignaciones, df_objetos, df_historial = cargar_datos()
+
+# ---------------------------------------------------------
+# HELPER: ALGORITMO CICLO CERRADO DE ASESINOS
+# ---------------------------------------------------------
+def generar_ciclo_cerrado(lista_vivos, lista_objetos):
+    """
+    Genera una permuta aleatoria donde P1 -> P2 -> ... -> Pn -> P1
+    y asigna un objeto aleatorio a cada asesino.
+    """
+    vivos_shuffled = lista_vivos.copy()
+    random.shuffle(vivos_shuffled)
+    
+    n = len(vivos_shuffled)
+    nuevas_asignaciones = []
+    
+    # Asegurar que haya suficientes objetos
+    objetos_pool = lista_objetos.copy()
+    while len(objetos_pool) < n:
+        objetos_pool.extend(lista_objetos)
+    random.shuffle(objetos_pool)
+
+    for i in range(n):
+        asesino = vivos_shuffled[i]
+        victima = vivos_shuffled[(i + 1) % n]  # El último tiene como víctima al primero
+        objeto = objetos_pool[i]
+        nuevas_asignaciones.append({
+            "Asesino": asesino,
+            "Victima": victima,
+            "Objeto": objeto
+        })
+    
+    return pd.DataFrame(nuevas_asignaciones)
+
+# ---------------------------------------------------------
+# INTERFAZ PRINCIPAL EN PESTAÑAS (MÓVIL)
+# ---------------------------------------------------------
+tab_estado, tab_gestion, tab_setup, tab_rotacion = st.tabs([
+    "🏆 Estado", "🔪 Baja", "⚙️ Setup", "🔄 Rotación"
+])
+
+# =========================================================
+# PESTAÑA 1: ESTADO Y RANKING
+# =========================================================
+with tab_estado:
+    st.subheader("🟢 Supervivientes")
+    vivos = df_jugadores[df_jugadores["Estado"] == "Vivo"]
+    
+    if len(vivos) > 0:
+        st.dataframe(vivos[["Nombre", "Email", "Bajas"]], hide_index=True, use_container_width=True)
+    else:
+        st.info("No hay jugadores vivos cargados. Ve a la pestaña 'Setup' para configurar la partida.")
+
+    st.markdown("---")
+    st.subheader("🥇 Ranking de Asesinos")
+    ranking = df_jugadores.sort_values(by="Bajas", ascending=False)
+    if len(ranking) > 0:
+        st.dataframe(ranking[["Nombre", "Estado", "Bajas"]], hide_index=True, use_container_width=True)
+
+    st.markdown("---")
+    st.subheader("📜 Historial de Muertes")
+    if len(df_historial) > 0:
+        st.dataframe(df_historial, hide_index=True, use_container_width=True)
+    else:
+        st.caption("Aún no se ha registrado ninguna baja.")
+
+# =========================================================
+# PESTAÑA 2: REGISTRAR BAJA
+# =========================================================
+with tab_gestion:
+    st.subheader("☠️ Registrar un 'Asesinato'")
+
+    vivos_list = df_jugadores[df_jugadores["Estado"] == "Vivo"]["Nombre"].dropna().tolist()
+
+    if len(vivos_list) < 2:
+        st.warning("⚠️ Quedan menos de 2 jugadores vivos o la partida no ha comenzado.")
+    else:
+        asesino_sel = st.selectbox("¿Quién ha ejecutado la baja?", vivos_list)
+        
+        # Buscar la asignación actual de este asesino
+        asig_actual = df_asignaciones[df_asignaciones["Asesino"] == asesino_sel]
+        
+        if len(asig_actual) > 0:
+            victima_actual = asig_actual.iloc[0]["Victima"]
+            objeto_actual = asig_actual.iloc[0]["Objeto"]
+            
+            st.info(f"<b>Víctima actual de {asesino_sel}:</b> {victima_actual}<br><b>Arma:</b> {objeto_actual}", unsafe_allow_html=True)
+
+            if st.button("🔴 Confirmar Asesinato", type="primary", use_container_width=True):
+                # 1. Buscar la asignación de la víctima caída para heredar su objetivo y arma
+                asig_victima = df_asignaciones[df_asignaciones["Asesino"] == victima_actual]
+                
+                if len(asig_victima) > 0:
+                    siguiente_victima = asig_victima.iloc[0]["Victima"]
+                    siguiente_objeto = asig_victima.iloc[0]["Objeto"]
+                else:
+                    siguiente_victima = "N/A"
+                    siguiente_objeto = "N/A"
+
+                # 2. Actualizar estado de la víctima a 'Muerto'
+                df_jugadores.loc[df_jugadores["Nombre"] == victima_actual, "Estado"] = "Muerto"
+                
+                # 3. Incrementar bajas del asesino
+                idx_asesino = df_jugadores[df_jugadores["Nombre"] == asesino_sel].index
+                df_jugadores.loc[idx_asesino, "Bajas"] = df_jugadores.loc[idx_asesino, "Bajas"] + 1
+
+                # 4. Eliminar la asignación de la víctima y actualizar la del asesino con la herencia
+                df_asignaciones = df_asignaciones[df_asignaciones["Asesino"] != victima_actual]
+                df_asignaciones.loc[df_asignaciones["Asesino"] == asesino_sel, "Victima"] = siguiente_victima
+                df_asignaciones.loc[df_asignaciones["Asesino"] == asesino_sel, "Objeto"] = siguiente_objeto
+
+                # 5. Registrar en Historial
+                nueva_baja = pd.DataFrame([{
+                    "Fecha": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    "Asesino": asesino_sel,
+                    "Victima": victima_actual,
+                    "Objeto": objeto_actual
+                }])
+                df_historial = pd.concat([df_historial, nueva_baja], ignore_index=True)
+
+                # 6. Guardar cambios en Google Sheets
+                conn.update(worksheet="Jugadores", data=df_jugadores)
+                conn.update(worksheet="Asignaciones", data=df_asignaciones)
+                conn.update(worksheet="Historial", data=df_historial)
+
+                st.success(f"🎉 ¡Baja registrada! {victima_actual} ha sido eliminado/a.")
+                st.info(f"Nueva víctima de **{asesino_sel}**: `{siguiente_victima}` con el arma `{siguiente_objeto}`.")
+
+                # 7. Enviar correo al asesino con sus nuevas órdenes
+                email_asesino = df_jugadores[df_jugadores["Nombre"] == asesino_sel]["Email"].iloc[0]
+                nuevos_vivos = df_jugadores[df_jugadores["Estado"] == "Vivo"]["Nombre"].tolist()
+                historial_dict = df_historial.to_dict(orient="records")
+
+                html_msg = email_service.build_assignment_email_html(
+                    nombre_asesino=asesino_sel,
+                    nombre_victima=siguiente_victima,
+                    objeto=siguiente_objeto,
+                    vivos_lista=nuevos_vivos,
+                    historial_bajas=historial_dict
+                )
+                email_service.send_email(
+                    to_email=email_asesino,
+                    subject="🔪 ¡NUEVA VÍCTIMA ASIGNADA! - Estás Muerto",
+                    body_html=html_msg
+                )
+        else:
+            st.error("No se encontró asignación para este jugador.")
+
+# =========================================================
+# PESTAÑA 3: CONFIGURACIÓN / SETUP
+# =========================================================
+with tab_setup:
+    st.subheader("⚙️ Configuración de la Partida")
+
+    # A. Agregar nuevo jugador
+    with st.expander("👤 Añadir Jugadores", expanded=True):
+        col1, col2 = st.columns(2)
+        nuevo_nombre = col1.text_input("Nombre del Jugador")
+        nuevo_email = col2.text_input("Correo Electrónico")
+        
+        if st.button("➕ Agregar Jugador", use_container_width=True):
+            if nuevo_nombre and nuevo_email:
+                nuevo_registro = pd.DataFrame([{
+                    "Nombre": nuevo_nombre.strip(),
+                    "Email": nuevo_email.strip().lower(),
+                    "Estado": "Vivo",
+                    "Bajas": 0
+                }])
+                df_jugadores = pd.concat([df_jugadores, nuevo_registro], ignore_index=True)
+                conn.update(worksheet="Jugadores", data=df_jugadores)
+                st.success(f"Jugador '{nuevo_nombre}' agregado correctamente.")
+                st.rerun()
+            else:
+                st.warning("Por favor rellena ambos campos (Nombre y Email).")
+
+    # B. Agregar / Ver Objetos
+    with st.expander("🛋️ Catálogo de Objetos / Armas", expanded=False):
+        nuevo_obj = st.text_input("Nuevo Objeto")
+        if st.button("➕ Agregar Objeto", use_container_width=True):
+            if nuevo_obj:
+                nuevo_o = pd.DataFrame([{"Nombre_Objeto": nuevo_obj.strip()}])
+                df_objetos = pd.concat([df_objetos, nuevo_o], ignore_index=True)
+                conn.update(worksheet="Objetos", data=df_objetos)
+                st.success(f"Objeto '{nuevo_obj}' agregado.")
+                st.rerun()
+        
+        st.dataframe(df_objetos, hide_index=True, use_container_width=True)
+
+    st.markdown("---")
+    # C. Botón para Iniciar Partida
+    st.subheader("🚀 Iniciar Partida & Repartir Víctimas")
+    st.caption("Esto generará un ciclo cerrado entre todos los jugadores vivos y enviará un correo secreto a cada uno con su víctima y arma.")
+
+    if st.button("💥 INICIAR Y REPARTIR DÍAS INICIALES", type="primary", use_container_width=True):
+        lista_vivos = df_jugadores[df_jugadores["Estado"] == "Vivo"]["Nombre"].tolist()
+        lista_obj = df_objetos["Nombre_Objeto"].dropna().tolist()
+
+        if len(lista_vivos) < 2:
+            st.error("Se necesitan al menos 2 jugadores en estado 'Vivo' para iniciar.")
+        elif len(lista_obj) == 0:
+            st.error("Agrega al menos 1 objeto en el catálogo de armas.")
+        else:
+            # Generar asignación inicial
+            df_asignaciones = generar_ciclo_cerrado(lista_vivos, lista_obj)
+            conn.update(worksheet="Asignaciones", data=df_asignaciones)
+
+            st.success("✅ ¡Partida iniciada y asignaciones creadas en Google Sheets!")
+            
+            # Enviar correos a todos
+            progress = st.progress(0)
+            for idx, row in df_asignaciones.iterrows():
+                asesino = row["Asesino"]
+                victima = row["Victima"]
+                objeto = row["Objeto"]
+                
+                email_dest = df_jugadores[df_jugadores["Nombre"] == asesino]["Email"].iloc[0]
+                
+                html_msg = email_service.build_assignment_email_html(
+                    nombre_asesino=asesino,
+                    nombre_victima=victima,
+                    objeto=objeto,
+                    vivos_lista=lista_vivos,
+                    historial_bajas=[]
+                )
+                email_service.send_email(
+                    to_email=email_dest,
+                    subject="🔪 [INICIO DE PARTIDA] Tu objetivo ha sido asignado - Estás Muerto",
+                    body_html=html_msg
+                )
+                progress.progress((idx + 1) / len(df_asignaciones))
+
+            st.balloons()
+            st.success("📩 Todos los correos de inicio han sido enviados.")
+
+# =========================================================
+# PESTAÑA 4: ROTACIÓN CADA 3 DÍAS
+# =========================================================
+with tab_rotacion:
+    st.subheader("🔄 Rotación de 3 Días")
+    st.write("""
+    Para agilizar la partida o por si sospechan de alguien, puedes ejecutar una **rotación periódica**.
+    Esto reorganiza los objetivos y redistribuye las armas entre los jugadores que siguen **vivos**, enviando un nuevo correo secreto a cada uno.
+    """)
+
+    if st.button("🔀 Ejecutar Rotación Ahora", type="primary", use_container_width=True):
+        lista_vivos = df_jugadores[df_jugadores["Estado"] == "Vivo"]["Nombre"].tolist()
+        lista_obj = df_objetos["Nombre_Objeto"].dropna().tolist()
+
+        if len(lista_vivos) < 2:
+            st.error("No hay suficientes supervivientes para rotar.")
+        else:
+            df_asignaciones = generar_ciclo_cerrado(lista_vivos, lista_obj)
+            conn.update(worksheet="Asignaciones", data=df_asignaciones)
+            st.success("✅ ¡Objetivos y armas reordenados!")
+
+            historial_dict = df_historial.to_dict(orient="records")
+            progress = st.progress(0)
+            for idx, row in df_asignaciones.iterrows():
+                asesino = row["Asesino"]
+                victima = row["Victima"]
+                objeto = row["Objeto"]
+                
+                email_dest = df_jugadores[df_jugadores["Nombre"] == asesino]["Email"].iloc[0]
+                
+                html_msg = email_service.build_assignment_email_html(
+                    nombre_asesino=asesino,
+                    nombre_victima=victima,
+                    objeto=objeto,
+                    vivos_lista=lista_vivos,
+                    historial_bajas=historial_dict
+                )
+                email_service.send_email(
+                    to_email=email_dest,
+                    subject="🔄 [ROTACIÓN DE OBJETIVOS] Tu nueva víctima y arma - Estás Muerto",
+                    body_html=html_msg
+                )
+                progress.progress((idx + 1) / len(df_asignaciones))
+
+            st.success("📩 Notificaciones de rotación enviadas a todos los supervivientes.")
