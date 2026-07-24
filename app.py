@@ -83,6 +83,35 @@ def generar_ciclo_cerrado(lista_vivos, lista_objetos):
     return pd.DataFrame(nuevas_asignaciones)
 
 # ---------------------------------------------------------
+# DIÁLOGOS POP-UP DE CONFIRMACIÓN DE BORRADO
+# ---------------------------------------------------------
+if hasattr(st, "dialog"):
+    @st.dialog("⚠️ Confirmar eliminación de jugador")
+    def popup_eliminar_jugador(nombre):
+        st.warning(f"¿Estás seguro de que deseas eliminar a **{nombre}** de la lista de jugadores?")
+        st.caption("Esta acción eliminará al jugador de la partida y actualizará la hoja de cálculo.")
+        c1, c2 = st.columns(2)
+        if c1.button("🗑️ Sí, Eliminar", type="primary", use_container_width=True, key="pop_btn_del_j_yes"):
+            df_updated = df_jugadores[df_jugadores["Nombre"] != nombre]
+            conn.update(worksheet="Jugadores", data=df_updated)
+            st.success(f"Jugador '{nombre}' eliminado.")
+            st.rerun()
+        if c2.button("Cancelar", use_container_width=True, key="pop_btn_del_j_no"):
+            st.rerun()
+
+    @st.dialog("⚠️ Confirmar eliminación de objeto")
+    def popup_eliminar_objeto(objeto):
+        st.warning(f"¿Estás seguro de que deseas eliminar el objeto **{objeto}** del catálogo?")
+        c1, c2 = st.columns(2)
+        if c1.button("🗑️ Sí, Eliminar", type="primary", use_container_width=True, key="pop_btn_del_o_yes"):
+            df_updated = df_objetos[df_objetos["Nombre_Objeto"] != objeto]
+            conn.update(worksheet="Objetos", data=df_updated)
+            st.success(f"Objeto '{objeto}' eliminado.")
+            st.rerun()
+        if c2.button("Cancelar", use_container_width=True, key="pop_btn_del_o_no"):
+            st.rerun()
+
+# ---------------------------------------------------------
 # INTERFAZ PRINCIPAL EN PESTAÑAS (MÓVIL)
 # ---------------------------------------------------------
 tab_estado, tab_gestion, tab_setup, tab_rotacion = st.tabs([
@@ -237,6 +266,28 @@ with tab_setup:
             st.caption("📋 **Jugadores Registrados actualmente:**")
             st.dataframe(df_jugadores[["Nombre", "Email", "Estado"]], hide_index=True, use_container_width=True)
 
+            st.caption("🗑️ **Eliminar un jugador:**")
+            c_del1, c_del2 = st.columns([2, 1])
+            j_a_borrar = c_del1.selectbox("Seleccionar jugador", df_jugadores["Nombre"].tolist(), key="sel_del_j")
+            if c_del2.button("🗑️ Borrar", use_container_width=True, key="btn_trigger_del_j"):
+                if hasattr(st, "dialog"):
+                    popup_eliminar_jugador(j_a_borrar)
+                else:
+                    st.session_state["pending_del_j"] = j_a_borrar
+
+            if st.session_state.get("pending_del_j") == j_a_borrar:
+                st.error(f"⚠️ ¿Confirmar eliminación de **{j_a_borrar}**?")
+                c_y, c_n = st.columns(2)
+                if c_y.button("Sí, Eliminar", type="primary", key="fb_j_del_y", use_container_width=True):
+                    df_updated = df_jugadores[df_jugadores["Nombre"] != j_a_borrar]
+                    conn.update(worksheet="Jugadores", data=df_updated)
+                    st.session_state.pop("pending_del_j", None)
+                    st.success(f"Jugador '{j_a_borrar}' eliminado.")
+                    st.rerun()
+                if c_n.button("Cancelar", key="fb_j_del_n", use_container_width=True):
+                    st.session_state.pop("pending_del_j", None)
+                    st.rerun()
+
     # B. Agregar / Ver Objetos
     with st.expander("🛋️ Catálogo de Objetos / Armas", expanded=False):
         nuevo_obj = st.text_input("Nuevo Objeto")
@@ -249,6 +300,29 @@ with tab_setup:
                 st.rerun()
         
         st.dataframe(df_objetos, hide_index=True, use_container_width=True)
+
+        if len(df_objetos) > 0:
+            st.caption("🗑️ **Eliminar un objeto del catálogo:**")
+            c_o1, c_o2 = st.columns([2, 1])
+            o_a_borrar = c_o1.selectbox("Seleccionar objeto", df_objetos["Nombre_Objeto"].dropna().tolist(), key="sel_del_o")
+            if c_o2.button("🗑️ Borrar", use_container_width=True, key="btn_trigger_del_o"):
+                if hasattr(st, "dialog"):
+                    popup_eliminar_objeto(o_a_borrar)
+                else:
+                    st.session_state["pending_del_o"] = o_a_borrar
+
+            if st.session_state.get("pending_del_o") == o_a_borrar:
+                st.error(f"⚠️ ¿Confirmar eliminación de **{o_a_borrar}**?")
+                c_y, c_n = st.columns(2)
+                if c_y.button("Sí, Eliminar", type="primary", key="fb_o_del_y", use_container_width=True):
+                    df_updated = df_objetos[df_objetos["Nombre_Objeto"] != o_a_borrar]
+                    conn.update(worksheet="Objetos", data=df_updated)
+                    st.session_state.pop("pending_del_o", None)
+                    st.success(f"Objeto '{o_a_borrar}' eliminado.")
+                    st.rerun()
+                if c_n.button("Cancelar", key="fb_o_del_n", use_container_width=True):
+                    st.session_state.pop("pending_del_o", None)
+                    st.rerun()
 
     st.markdown("---")
     # C. Botón para Iniciar Partida
