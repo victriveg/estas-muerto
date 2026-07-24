@@ -42,6 +42,11 @@ def cargar_datos():
         df_h = pd.DataFrame(columns=["Fecha", "Asesino", "Victima", "Objeto"])
 
     # Normalizar columnas vacías
+    if "Estado" not in df_j.columns:
+        df_j["Estado"] = "Vivo"
+    df_j["Estado"] = df_j["Estado"].fillna("Vivo").astype(str).str.strip()
+    df_j.loc[(df_j["Estado"] == "") | (df_j["Estado"] == "nan"), "Estado"] = "Vivo"
+
     if "Bajas" not in df_j.columns:
         df_j["Bajas"] = 0
     df_j["Bajas"] = pd.to_numeric(df_j["Bajas"], errors="coerce").fillna(0).astype(int)
@@ -132,7 +137,7 @@ def ejecutar_inicio_partida():
     df_jugadores["Bajas"] = 0
     conn.update(worksheet="Jugadores", data=df_jugadores)
 
-    lista_vivos = df_jugadores["Nombre"].tolist()
+    lista_vivos = df_jugadores["Nombre"].dropna().tolist()
     lista_obj = df_objetos["Nombre_Objeto"].dropna().tolist()
 
     if len(lista_vivos) < 2:
@@ -173,6 +178,7 @@ def ejecutar_inicio_partida():
 
     st.balloons()
     st.success("📩 Todos los correos de inicio han sido enviados.")
+    st.rerun()
 
 # ---------------------------------------------------------
 # INTERFAZ PRINCIPAL EN PESTAÑAS (MÓVIL)
