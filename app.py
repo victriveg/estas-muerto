@@ -199,6 +199,7 @@ if hasattr(st, "dialog"):
         st.warning("⚠️ **¿Estás seguro de que deseas iniciar una nueva partida?**")
         st.markdown("""
         * **Todos los jugadores pasarán a estar 'Vivos'** y sus bajas se reiniciarán a 0.
+        * **Se borrará todo el historial de bajas** de la partida anterior.
         * Se generará un nuevo ciclo cerrado de víctimas y armas.
         * Se enviará un correo secreto a cada participante con su objetivo.
         """)
@@ -209,11 +210,19 @@ if hasattr(st, "dialog"):
             st.rerun()
 
 def ejecutar_inicio_partida():
-    global df_jugadores, df_asignaciones
-    # 1. Pasar a TODOS los jugadores a "Vivo" y reiniciar bajas a 0
+    global df_jugadores, df_asignaciones, df_historial
+    # 1. Pasar a TODOS los jugadores a "Vivo", reiniciar bajas a 0 y borrar fecha de eliminación
     df_jugadores["Estado"] = "Vivo"
     df_jugadores["Bajas"] = 0
+    df_jugadores["Fecha_Eliminacion"] = ""
     conn.update(worksheet="Jugadores", data=df_jugadores)
+
+    # 2. Borrar historial de bajas anteriores
+    df_historial = pd.DataFrame(columns=["Fecha", "Asesino", "Victima", "Objeto"])
+    try:
+        conn.update(worksheet="Historial", data=df_historial)
+    except Exception:
+        pass
 
     lista_vivos = df_jugadores["Nombre"].dropna().tolist()
     lista_obj = df_objetos["Nombre_Objeto"].dropna().tolist()
@@ -225,11 +234,11 @@ def ejecutar_inicio_partida():
         st.error("Agrega al menos 1 objeto en el catálogo de armas.")
         return
 
-    # 2. Generar ciclo cerrado
+    # 3. Generar ciclo cerrado
     df_asignaciones = generar_ciclo_cerrado(lista_vivos, lista_obj)
     conn.update(worksheet="Asignaciones", data=df_asignaciones)
 
-    st.success("✅ ¡Partida iniciada! Todos los jugadores están VIVOS y las asignaciones se han creado en Google Sheets.")
+    st.success("✅ ¡Partida iniciada! Todos los jugadores están VIVOS, el historial se ha vaciado y las asignaciones se han creado en Google Sheets.")
     
     # 3. Enviar correos
     progress = st.progress(0)
