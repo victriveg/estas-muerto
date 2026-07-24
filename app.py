@@ -245,11 +245,14 @@ with tab_setup:
                 nombre_clean = nuevo_nombre.strip()
                 email_clean = nuevo_email.strip().lower()
 
-                # Comprobar nombres existentes (insensible a mayúsculas/minúsculas)
+                # Comprobar nombres y correos existentes (insensible a mayúsculas/minúsculas)
                 nombres_existentes = df_jugadores["Nombre"].astype(str).str.strip().str.lower().tolist()
+                emails_existentes = df_jugadores["Email"].astype(str).str.strip().str.lower().tolist()
                 
                 if nombre_clean.lower() in nombres_existentes:
                     st.error(f"❌ Ya existe un jugador registrado con el nombre '{nombre_clean}'. Utiliza un nombre o apodo único.")
+                elif email_clean in emails_existentes:
+                    st.error(f"❌ El correo '{email_clean}' ya pertenece a otro jugador registrado.")
                 else:
                     nuevo_registro = pd.DataFrame([{
                         "Nombre": nombre_clean,
