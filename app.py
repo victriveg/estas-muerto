@@ -134,7 +134,7 @@ with tab_gestion:
             victima_actual = asig_actual.iloc[0]["Victima"]
             objeto_actual = asig_actual.iloc[0]["Objeto"]
             
-            st.info(f"<b>Víctima actual de {asesino_sel}:</b> {victima_actual}<br><b>Arma:</b> {objeto_actual}", unsafe_allow_html=True)
+            st.info(f"**Víctima actual de {asesino_sel}:** {victima_actual}  \n**Arma:** {objeto_actual}")
 
             if st.button("🔴 Confirmar Asesinato", type="primary", use_container_width=True):
                 # 1. Buscar la asignación de la víctima caída para heredar su objetivo y arma
