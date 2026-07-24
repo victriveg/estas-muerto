@@ -232,6 +232,11 @@ with tab_setup:
             else:
                 st.warning("Por favor rellena ambos campos (Nombre y Email).")
 
+        if len(df_jugadores) > 0:
+            st.markdown("---")
+            st.caption("📋 **Jugadores Registrados actualmente:**")
+            st.dataframe(df_jugadores[["Nombre", "Email", "Estado"]], hide_index=True, use_container_width=True)
+
     # B. Agregar / Ver Objetos
     with st.expander("🛋️ Catálogo de Objetos / Armas", expanded=False):
         nuevo_obj = st.text_input("Nuevo Objeto")
