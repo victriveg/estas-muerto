@@ -210,16 +210,25 @@ with tab_setup:
         
         if st.button("➕ Agregar Jugador", use_container_width=True):
             if nuevo_nombre and nuevo_email:
-                nuevo_registro = pd.DataFrame([{
-                    "Nombre": nuevo_nombre.strip(),
-                    "Email": nuevo_email.strip().lower(),
-                    "Estado": "Vivo",
-                    "Bajas": 0
-                }])
-                df_jugadores = pd.concat([df_jugadores, nuevo_registro], ignore_index=True)
-                conn.update(worksheet="Jugadores", data=df_jugadores)
-                st.success(f"Jugador '{nuevo_nombre}' agregado correctamente.")
-                st.rerun()
+                nombre_clean = nuevo_nombre.strip()
+                email_clean = nuevo_email.strip().lower()
+
+                # Comprobar nombres existentes (insensible a mayúsculas/minúsculas)
+                nombres_existentes = df_jugadores["Nombre"].astype(str).str.strip().str.lower().tolist()
+                
+                if nombre_clean.lower() in nombres_existentes:
+                    st.error(f"❌ Ya existe un jugador registrado con el nombre '{nombre_clean}'. Utiliza un nombre o apodo único.")
+                else:
+                    nuevo_registro = pd.DataFrame([{
+                        "Nombre": nombre_clean,
+                        "Email": email_clean,
+                        "Estado": "Vivo",
+                        "Bajas": 0
+                    }])
+                    df_jugadores = pd.concat([df_jugadores, nuevo_registro], ignore_index=True)
+                    conn.update(worksheet="Jugadores", data=df_jugadores)
+                    st.success(f"Jugador '{nombre_clean}' agregado correctamente.")
+                    st.rerun()
             else:
                 st.warning("Por favor rellena ambos campos (Nombre y Email).")
 
