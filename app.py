@@ -111,6 +111,69 @@ if hasattr(st, "dialog"):
         if c2.button("Cancelar", use_container_width=True, key="pop_btn_del_o_no"):
             st.rerun()
 
+    @st.dialog("🚀 Confirmar Inicio de Partida")
+    def popup_iniciar_partida():
+        st.warning("⚠️ **¿Estás seguro de que deseas iniciar una nueva partida?**")
+        st.markdown("""
+        * **Todos los jugadores pasarán a estar 'Vivos'** y sus bajas se reiniciarán a 0.
+        * Se generará un nuevo ciclo cerrado de víctimas y armas.
+        * Se enviará un correo secreto a cada participante con su objetivo.
+        """)
+        c1, c2 = st.columns(2)
+        if c1.button("💥 Sí, Iniciar Partida", type="primary", use_container_width=True, key="pop_btn_start_yes"):
+            ejecutar_inicio_partida()
+        if c2.button("Cancelar", use_container_width=True, key="pop_btn_start_no"):
+            st.rerun()
+
+def ejecutar_inicio_partida():
+    global df_jugadores, df_asignaciones
+    # 1. Pasar a TODOS los jugadores a "Vivo" y reiniciar bajas a 0
+    df_jugadores["Estado"] = "Vivo"
+    df_jugadores["Bajas"] = 0
+    conn.update(worksheet="Jugadores", data=df_jugadores)
+
+    lista_vivos = df_jugadores["Nombre"].tolist()
+    lista_obj = df_objetos["Nombre_Objeto"].dropna().tolist()
+
+    if len(lista_vivos) < 2:
+        st.error("Se necesitan al menos 2 jugadores registrados para iniciar.")
+        return
+    if len(lista_obj) == 0:
+        st.error("Agrega al menos 1 objeto en el catálogo de armas.")
+        return
+
+    # 2. Generar ciclo cerrado
+    df_asignaciones = generar_ciclo_cerrado(lista_vivos, lista_obj)
+    conn.update(worksheet="Asignaciones", data=df_asignaciones)
+
+    st.success("✅ ¡Partida iniciada! Todos los jugadores están VIVOS y las asignaciones se han creado en Google Sheets.")
+    
+    # 3. Enviar correos
+    progress = st.progress(0)
+    for idx, row in df_asignaciones.iterrows():
+        asesino = row["Asesino"]
+        victima = row["Victima"]
+        objeto = row["Objeto"]
+        
+        email_dest = df_jugadores[df_jugadores["Nombre"] == asesino]["Email"].iloc[0]
+        
+        html_msg = email_service.build_assignment_email_html(
+            nombre_asesino=asesino,
+            nombre_victima=victima,
+            objeto=objeto,
+            vivos_lista=lista_vivos,
+            historial_bajas=[]
+        )
+        email_service.send_email(
+            to_email=email_dest,
+            subject="🔪 [INICIO DE PARTIDA] Tu objetivo ha sido asignado - Estás Muerto",
+            body_html=html_msg
+        )
+        progress.progress((idx + 1) / len(df_asignaciones))
+
+    st.balloons()
+    st.success("📩 Todos los correos de inicio han sido enviados.")
+
 # ---------------------------------------------------------
 # INTERFAZ PRINCIPAL EN PESTAÑAS (MÓVIL)
 # ---------------------------------------------------------
@@ -333,48 +396,23 @@ with tab_setup:
     st.markdown("---")
     # C. Botón para Iniciar Partida
     st.subheader("🚀 Iniciar Partida & Repartir Víctimas")
-    st.caption("Esto generará un ciclo cerrado entre todos los jugadores vivos y enviará un correo secreto a cada uno con su víctima y arma.")
+    st.caption("Al pulsar este botón se confirmará el inicio de la partida. Todos los jugadores pasarán a estar VIVOS, se reiniciarán las bajas a 0 y se enviará un correo secreto a cada participante.")
 
-    if st.button("💥 INICIAR Y REPARTIR DÍAS INICIALES", type="primary", use_container_width=True):
-        lista_vivos = df_jugadores[df_jugadores["Estado"] == "Vivo"]["Nombre"].tolist()
-        lista_obj = df_objetos["Nombre_Objeto"].dropna().tolist()
-
-        if len(lista_vivos) < 2:
-            st.error("Se necesitan al menos 2 jugadores en estado 'Vivo' para iniciar.")
-        elif len(lista_obj) == 0:
-            st.error("Agrega al menos 1 objeto en el catálogo de armas.")
+    if st.button("💥 INICIAR Y REPARTIR DÍAS INICIALES", type="primary", use_container_width=True, key="btn_trigger_start_game"):
+        if hasattr(st, "dialog"):
+            popup_iniciar_partida()
         else:
-            # Generar asignación inicial
-            df_asignaciones = generar_ciclo_cerrado(lista_vivos, lista_obj)
-            conn.update(worksheet="Asignaciones", data=df_asignaciones)
+            st.session_state["pending_start_game"] = True
 
-            st.success("✅ ¡Partida iniciada y asignaciones creadas en Google Sheets!")
-            
-            # Enviar correos a todos
-            progress = st.progress(0)
-            for idx, row in df_asignaciones.iterrows():
-                asesino = row["Asesino"]
-                victima = row["Victima"]
-                objeto = row["Objeto"]
-                
-                email_dest = df_jugadores[df_jugadores["Nombre"] == asesino]["Email"].iloc[0]
-                
-                html_msg = email_service.build_assignment_email_html(
-                    nombre_asesino=asesino,
-                    nombre_victima=victima,
-                    objeto=objeto,
-                    vivos_lista=lista_vivos,
-                    historial_bajas=[]
-                )
-                email_service.send_email(
-                    to_email=email_dest,
-                    subject="🔪 [INICIO DE PARTIDA] Tu objetivo ha sido asignado - Estás Muerto",
-                    body_html=html_msg
-                )
-                progress.progress((idx + 1) / len(df_asignaciones))
-
-            st.balloons()
-            st.success("📩 Todos los correos de inicio han sido enviados.")
+    if st.session_state.get("pending_start_game"):
+        st.warning("⚠️ **¿Confirmar inicio de partida?** Todos los jugadores pasarán a estar 'Vivos' y se enviarán los correos iniciales.")
+        c_y, c_n = st.columns(2)
+        if c_y.button("💥 Sí, Iniciar Partida", type="primary", key="fb_start_yes", use_container_width=True):
+            st.session_state.pop("pending_start_game", None)
+            ejecutar_inicio_partida()
+        if c_n.button("Cancelar", key="fb_start_no", use_container_width=True):
+            st.session_state.pop("pending_start_game", None)
+            st.rerun()
 
 # =========================================================
 # PESTAÑA 4: ROTACIÓN CADA 3 DÍAS
