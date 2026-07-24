@@ -200,7 +200,10 @@ with tab_gestion:
                 # 6. Guardar cambios en Google Sheets
                 conn.update(worksheet="Jugadores", data=df_jugadores)
                 conn.update(worksheet="Asignaciones", data=df_asignaciones)
-                conn.update(worksheet="Historial", data=df_historial)
+                try:
+                    conn.update(worksheet="Historial", data=df_historial)
+                except Exception:
+                    pass  # Si la pestaña Historial no existe en Google Sheets, no rompe la app
 
                 st.success(f"🎉 ¡Baja registrada! {victima_actual} ha sido eliminado/a.")
                 st.info(f"Nueva víctima de **{asesino_sel}**: `{siguiente_victima}` con el arma `{siguiente_objeto}`.")
