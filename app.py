@@ -51,9 +51,86 @@ def cargar_datos():
         df_j["Bajas"] = 0
     df_j["Bajas"] = pd.to_numeric(df_j["Bajas"], errors="coerce").fillna(0).astype(int)
 
+    if "Fecha_Eliminacion" not in df_j.columns:
+        df_j["Fecha_Eliminacion"] = ""
+
     return df_j, df_a, df_o, df_h
 
 df_jugadores, df_asignaciones, df_objetos, df_historial = cargar_datos()
+
+# ---------------------------------------------------------
+# HELPERS PARA TIEMPO DE SUPERVIVENCIA Y RANKING CON EMPATES
+# ---------------------------------------------------------
+def calcular_tiempo_supervivencia(row, start_dt):
+    fecha_elim_str = str(row.get("Fecha_Eliminacion", "")).strip()
+    estado = str(row.get("Estado", "")).strip()
+    
+    if estado == "Vivo":
+        return "¡Sobrevivió hasta el final! 👑"
+        
+    if not fecha_elim_str or fecha_elim_str in ["nan", "None", ""]:
+        return "Eliminado/a"
+
+    try:
+        elim_dt = datetime.strptime(fecha_elim_str, "%Y-%m-%d %H:%M:%S")
+        diff = elim_dt - start_dt
+        seconds = int(diff.total_seconds())
+        if seconds < 0:
+            seconds = abs(seconds)
+            
+        days = seconds // 86400
+        hours = (seconds % 86400) // 3600
+        minutes = (seconds % 3600) // 60
+        
+        if days > 0:
+            return f"{days} días y {hours} horas viva/o"
+        elif hours > 0:
+            return f"{hours} horas y {minutes} min viva/o"
+        else:
+            return f"{minutes} min viva/o"
+    except Exception:
+        return "Eliminado/a"
+
+def calcular_ranking_completo(df_jugadores, df_historial):
+    # Determinar fecha de inicio de la partida
+    start_dt = datetime.now()
+    if len(df_historial) > 0 and "Fecha" in df_historial.columns:
+        try:
+            primera_baja = df_historial.iloc[0]["Fecha"]
+            start_dt = datetime.strptime(primera_baja, "%Y-%m-%d %H:%M")
+        except Exception:
+            pass
+
+    df_sorted = df_jugadores.copy()
+    df_sorted["Bajas"] = pd.to_numeric(df_sorted["Bajas"], errors="coerce").fillna(0).astype(int)
+    
+    # Ordenar por bajas descendente
+    df_sorted = df_sorted.sort_values(by=["Bajas"], ascending=[False])
+
+    ranking_resultado = []
+    current_rank = 1
+    previous_kills = None
+
+    for idx, row in df_sorted.iterrows():
+        kills = int(row["Bajas"])
+        
+        # Empates: si las kills son menores que el jugador anterior, la posición salta a la cantidad actual de procesados + 1
+        if previous_kills is not None and kills < previous_kills:
+            current_rank = len(ranking_resultado) + 1
+        
+        previous_kills = kills
+        tiempo_str = calcular_tiempo_supervivencia(row, start_dt)
+
+        ranking_resultado.append({
+            "Posicion": current_rank,
+            "Nombre": row["Nombre"],
+            "Email": row["Email"],
+            "Bajas": kills,
+            "Estado": row["Estado"],
+            "Tiempo_Supervivencia": tiempo_str
+        })
+        
+    return ranking_resultado
 
 # ---------------------------------------------------------
 # HELPER: ALGORITMO CICLO CERRADO DE ASESINOS
@@ -196,14 +273,12 @@ with tab_estado:
     
     if len(vivos) > 0:
         st.dataframe(vivos[["Nombre", "Email", "Bajas"]], hide_index=True, use_container_width=True)
-    else:
-        st.info("No hay jugadores vivos cargados. Ve a la pestaña 'Setup' para configurar la partida.")
-
     st.markdown("---")
     st.subheader("🥇 Ranking de Asesinos")
-    ranking = df_jugadores.sort_values(by="Bajas", ascending=False)
-    if len(ranking) > 0:
-        st.dataframe(ranking[["Nombre", "Estado", "Bajas"]], hide_index=True, use_container_width=True)
+    ranking_data = calcular_ranking_completo(df_jugadores, df_historial)
+    if len(ranking_data) > 0:
+        df_rank_display = pd.DataFrame(ranking_data)[["Posicion", "Nombre", "Bajas", "Estado", "Tiempo_Supervivencia"]]
+        st.dataframe(df_rank_display, hide_index=True, use_container_width=True)
 
     st.markdown("---")
     st.subheader("📜 Historial de Muertes")
@@ -235,6 +310,8 @@ with tab_gestion:
             st.info(f"**Víctima actual de {asesino_sel}:** {victima_actual}  \n**Arma:** {objeto_actual}")
 
             if st.button("🔴 Confirmar Asesinato", type="primary", use_container_width=True):
+                now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
                 # 1. Buscar la asignación de la víctima caída para heredar su objetivo y arma
                 asig_victima = df_asignaciones[df_asignaciones["Asesino"] == victima_actual]
                 
@@ -245,8 +322,9 @@ with tab_gestion:
                     siguiente_victima = "N/A"
                     siguiente_objeto = "N/A"
 
-                # 2. Actualizar estado de la víctima a 'Muerto'
+                # 2. Actualizar estado de la víctima a 'Muerto' y guardar fecha de eliminación
                 df_jugadores.loc[df_jugadores["Nombre"] == victima_actual, "Estado"] = "Muerto"
+                df_jugadores.loc[df_jugadores["Nombre"] == victima_actual, "Fecha_Eliminacion"] = now_str
                 
                 # 3. Incrementar bajas del asesino
                 idx_asesino = df_jugadores[df_jugadores["Nombre"] == asesino_sel].index
@@ -272,28 +350,57 @@ with tab_gestion:
                 try:
                     conn.update(worksheet="Historial", data=df_historial)
                 except Exception:
-                    pass  # Si la pestaña Historial no existe en Google Sheets, no rompe la app
+                    pass
 
                 st.success(f"🎉 ¡Baja registrada! {victima_actual} ha sido eliminado/a.")
-                st.info(f"Nueva víctima de **{asesino_sel}** asignada.")
 
-                # 7. Enviar correo al asesino con sus nuevas órdenes
-                email_asesino = df_jugadores[df_jugadores["Nombre"] == asesino_sel]["Email"].iloc[0]
-                nuevos_vivos = df_jugadores[df_jugadores["Estado"] == "Vivo"]["Nombre"].tolist()
-                historial_dict = df_historial.to_dict(orient="records")
+                # 7. Verificar si la partida ha finalizado (queda solo 1 superviviente)
+                vivos_restantes = df_jugadores[df_jugadores["Estado"] == "Vivo"]["Nombre"].tolist()
 
-                html_msg = email_service.build_assignment_email_html(
-                    nombre_asesino=asesino_sel,
-                    nombre_victima=siguiente_victima,
-                    objeto=siguiente_objeto,
-                    vivos_lista=nuevos_vivos,
-                    historial_bajas=historial_dict
-                )
-                email_service.send_email(
-                    to_email=email_asesino,
-                    subject="🔪 ¡NUEVA VÍCTIMA ASIGNADA! - Estás Muerto",
-                    body_html=html_msg
-                )
+                if len(vivos_restantes) == 1:
+                    ganador_nombre = vivos_restantes[0]
+                    st.balloons()
+                    st.success(f"🏆 ¡PARTIDA FINALIZADA! El ganador/a absoluto es **{ganador_nombre}** 🎉")
+                    
+                    ranking_final = calcular_ranking_completo(df_jugadores, df_historial)
+                    historial_dict = df_historial.to_dict(orient="records")
+
+                    # Enviar correo de fin de partida a TODOS los participantes
+                    html_game_over = email_service.build_game_over_email_html(
+                        nombre_ganador=ganador_nombre,
+                        ranking_lista=ranking_final,
+                        historial_bajas=historial_dict
+                    )
+                    
+                    progress = st.progress(0)
+                    for idx_j, row_j in df_jugadores.iterrows():
+                        email_dest = row_j["Email"]
+                        email_service.send_email(
+                            to_email=email_dest,
+                            subject=f"🏆 ¡PARTIDA FINALIZADA! Ganador/a: {ganador_nombre} - Estás Muerto",
+                            body_html=html_game_over
+                        )
+                        progress.progress((idx_j + 1) / len(df_jugadores))
+                        
+                    st.success("📩 Correo de fin de partida enviado a todos los participantes.")
+                else:
+                    # Si aún quedan 2 o más personas vivas, enviar correo normal de nueva víctima al asesino
+                    st.info(f"Nueva víctima de **{asesino_sel}** asignada.")
+                    email_asesino = df_jugadores[df_jugadores["Nombre"] == asesino_sel]["Email"].iloc[0]
+                    historial_dict = df_historial.to_dict(orient="records")
+
+                    html_msg = email_service.build_assignment_email_html(
+                        nombre_asesino=asesino_sel,
+                        nombre_victima=siguiente_victima,
+                        objeto=siguiente_objeto,
+                        vivos_lista=vivos_restantes,
+                        historial_bajas=historial_dict
+                    )
+                    email_service.send_email(
+                        to_email=email_asesino,
+                        subject="🔪 ¡NUEVA VÍCTIMA ASIGNADA! - Estás Muerto",
+                        body_html=html_msg
+                    )
         else:
             st.error("No se encontró asignación para este jugador.")
 

@@ -93,3 +93,87 @@ def build_assignment_email_html(nombre_asesino, nombre_victima, objeto, vivos_li
     </html>
     """
     return html
+
+
+def build_game_over_email_html(nombre_ganador, ranking_lista, historial_bajas=None):
+    """
+    Construye la plantilla HTML del correo de FIN DE PARTIDA con el podio,
+    duración de supervivencia y ranking completo con empates compartidos.
+    """
+    rows_html = ""
+    for r in ranking_lista:
+        pos = r.get("Posicion")
+        nombre = r.get("Nombre")
+        kills = r.get("Bajas")
+        tiempo = r.get("Tiempo_Supervivencia")
+        
+        # Icono según posición
+        if pos == 1:
+            icon = "🥇 1º"
+            badge_color = "#fca311"
+        elif pos == 2:
+            icon = "🥈 2º"
+            badge_color = "#e0e0e0"
+        elif pos == 3:
+            icon = "🥉 3º"
+            badge_color = "#cd7f32"
+        else:
+            icon = f"{pos}º"
+            badge_color = "#888888"
+
+        rows_html += f"""
+        <tr style="border-bottom: 1px solid #333;">
+            <td style="padding: 12px 8px; text-align: center; font-weight: bold; font-size: 15px; color: {badge_color};">{icon}</td>
+            <td style="padding: 12px 8px; font-weight: bold; color: #ffffff; font-size: 15px;">{nombre}</td>
+            <td style="padding: 12px 8px; text-align: center; color: #ff6b6b; font-weight: bold; font-size: 14px;">{kills} kills</td>
+            <td style="padding: 12px 8px; font-size: 13px; color: #aaaaaa;">{tiempo}</td>
+        </tr>
+        """
+
+    bajas_html = ""
+    if historial_bajas:
+        bajas_items = "".join([f"<li>☠️ <b>{b.get('Asesino')}</b> eliminó a <b>{b.get('Victima')}</b> ({b.get('Objeto')}) el {b.get('Fecha')}</li>" for b in historial_bajas])
+        bajas_html = f"""
+        <hr style="border: 0; border-top: 1px solid #444; margin: 25px 0;">
+        <h4 style="color: #e74c3c;">📜 Historial Completo de Bajas</h4>
+        <ul style="line-height: 1.6; color: #ccc; font-size: 13px;">{bajas_items}</ul>
+        """
+
+    html = f"""
+    <html>
+    <body style="font-family: Arial, sans-serif; background-color: #121212; color: #ffffff; padding: 20px;">
+        <div style="max-width: 580px; margin: 0 auto; background: #1e1e1e; padding: 30px; border-radius: 14px; border: 2px solid #fca311;">
+            <h1 style="color: #fca311; text-align: center; margin-bottom: 5px; font-size: 26px;">🏆 ¡PARTIDA FINALIZADA! 🏆</h1>
+            <p style="text-align: center; color: #888; font-size: 15px;">Juego "Estás Muerto"</p>
+            <hr style="border: 0; border-top: 1px solid #444; margin: 20px 0;">
+            
+            <div style="background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%); padding: 20px; border-radius: 10px; text-align: center; border: 1px solid #fca311; margin-bottom: 25px;">
+                <p style="color: #aaaaaa; margin: 0; font-size: 14px; text-transform: uppercase; letter-spacing: 1px;">👑 ÚLTIMO SUPERVIVIENTE & GANADOR/A 👑</p>
+                <h2 style="color: #fca311; font-size: 30px; margin: 10px 0;">{nombre_ganador}</h2>
+                <p style="color: #4cc9f0; margin: 0; font-size: 14px;">¡Ha logrado eliminar a todos sus oponentes y alzarse con la victoria!</p>
+            </div>
+            
+            <h3 style="color: #ffffff; margin-bottom: 15px;">📊 Clasificación & Ranking Final</h3>
+            <table style="width: 100%; border-collapse: collapse; background: #252525; border-radius: 8px; overflow: hidden;">
+                <thead>
+                    <tr style="background: #333333; color: #aaaaaa; font-size: 12px; text-align: left;">
+                        <th style="padding: 10px 8px; text-align: center;">POS</th>
+                        <th style="padding: 10px 8px;">JUGADOR</th>
+                        <th style="padding: 10px 8px; text-align: center;">KILLS</th>
+                        <th style="padding: 10px 8px;">SUPERVIVENCIA</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {rows_html}
+                </tbody>
+            </table>
+            
+            {bajas_html}
+            
+            <hr style="border: 0; border-top: 1px solid #333; margin: 25px 0;">
+            <p style="text-align: center; font-size: 11px; color: #666;">Gracias por jugar a "Estás Muerto" 🔪</p>
+        </div>
+    </body>
+    </html>
+    """
+    return html
