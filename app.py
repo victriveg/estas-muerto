@@ -117,6 +117,23 @@ is_host = (current_user.id == room_actual.host_id)
 player_active = db.query(Player).filter_by(user_id=current_user.id, room_id=room_id).first()
 
 # ---------------------------------------------------------
+# TARJETA DESTACADA: MI MISIÓN SECRETA (ACCESIBLE SIEMPRE SI ESTÁ VIVO)
+# ---------------------------------------------------------
+if player_active and player_active.estado == "vivo" and room_actual.estado == "en_juego":
+    asig_secret = db.query(Assignment).filter_by(room_id=room_id, asesino_id=player_active.id).first()
+    if asig_secret:
+        victima_secret = db.query(Player).get(asig_secret.victima_id)
+        with st.expander("🕵️ **MI MISIÓN SECRETA** (Pulsa para ver/ocultar tu objetivo)", expanded=False):
+            st.markdown(f"""
+            <div style="background: #2a2a2a; padding: 15px; border-radius: 10px; border-left: 5px solid #e74c3c;">
+                <p style="margin: 5px 0; font-size: 16px;">🎯 <b>Tu Víctima:</b> <span style="color: #ff6b6b; font-size: 22px; font-weight: bold;">{victima_secret.user.nombre}</span></p>
+                <p style="margin: 5px 0; font-size: 16px;">🛋️ <b>Tu Arma / Objeto:</b> <span style="color: #fca311; font-size: 22px; font-weight: bold;">{asig_secret.objeto}</span></p>
+                <p style="margin: 5px 0; font-size: 14px; color: #4cc9f0;">🔄 <b>Cambios restantes de arma:</b> {player_active.cambios_restantes}</p>
+            </div>
+            """, unsafe_allow_html=True)
+            st.caption("🔒 Mantén esta pantalla oculta de miradas curiosas.")
+
+# ---------------------------------------------------------
 # INTERFAZ PRINCIPAL EN PESTAÑAS
 # ---------------------------------------------------------
 tab_estado, tab_gestion, tab_setup, tab_rotacion = st.tabs([
@@ -185,7 +202,7 @@ with tab_estado:
 with tab_gestion:
     st.subheader("☠️ Registro y Confirmación de Asesinatos")
 
-    # 1. NOTIFICACIÓN ANÓNIMA PARA LA VÍCTIMA (Si existe solicitud pendiente sobre el usuario activo)
+    # 1. NOTIFICACIÓN ANÓNIMA PARA LA VÍCTIMA
     if player_active:
         claims_pendientes = db.query(KillClaim).filter_by(
             room_id=room_id, victima_id=player_active.id, estado="pendiente"
@@ -212,7 +229,7 @@ with tab_gestion:
                     st.rerun()
             st.markdown("---")
 
-    # 2. OPCIÓN JUGADOR: MARCAR ASESINATO A SU VÍCTIMA
+    # 2. OPCIÓN JUGADOR: CONSULTAR Y MARCAR ASESINATO A SU VÍCTIMA
     if player_active and player_active.estado == "vivo":
         asig_mi = db.query(Assignment).filter_by(room_id=room_id, asesino_id=player_active.id).first()
         if asig_mi:
@@ -232,6 +249,10 @@ with tab_gestion:
                     st.success("📩 Solicitud enviada. Le ha aparecido una notificación a tu víctima para que la confirme.")
                     st.rerun()
             st.markdown("---")
+        elif room_actual.estado == "espera":
+            st.info("⏳ La partida aún no ha comenzado. Espera a que el Host inicie el juego para recibir tu objetivo.")
+    elif player_active and player_active.estado == "muerto":
+        st.error("☠️ Has sido eliminado/a de esta partida. Puedes consultar el ranking y el historial de bajas.")
 
     # 3. OPCIÓN ADMINISTRADOR (HOST): REGISTRO DIRECTO DE ASESINATO
     if is_host:
@@ -298,7 +319,6 @@ with tab_setup:
                     db.add(n_room)
                     db.commit()
                     db.refresh(n_room)
-                    # Unir automáticamente al creador a la sala
                     p_creator = Player(user_id=current_user.id, room_id=n_room.id, estado="vivo", bajas=0, cambios_restantes=2)
                     db.add(p_creator)
                     db.commit()
@@ -318,7 +338,6 @@ with tab_setup:
                 name_clean = nuevo_nombre.strip()
                 email_clean = nuevo_email.strip().lower()
 
-                # Buscar o crear usuario
                 user = db.query(User).filter_by(email=email_clean).first()
                 if not user:
                     user = User(nombre=name_clean, email=email_clean, password_hash=auth.hash_password("1234"))
@@ -326,7 +345,6 @@ with tab_setup:
                     db.commit()
                     db.refresh(user)
 
-                # Verificar si ya está inscrito en esta sala
                 player_existing = db.query(Player).filter_by(user_id=user.id, room_id=room_id).first()
                 if player_existing:
                     st.error(f"❌ El usuario '{email_clean}' ya forma parte de esta sala.")
@@ -339,7 +357,6 @@ with tab_setup:
             else:
                 st.warning("Rellena ambos campos (Nombre y Email).")
 
-        # Lista de jugadores inscritos
         inscritos = db.query(Player).filter_by(room_id=room_id).all()
         if inscritos:
             st.markdown("---")
