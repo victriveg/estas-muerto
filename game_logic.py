@@ -1,7 +1,18 @@
 import random
+import string
 from datetime import datetime
 from sqlalchemy.orm import Session
 from models import Room, Player, Assignment, GameObject, HistoryLog, KillClaim
+
+
+def generar_codigo_pin(db: Session) -> str:
+    """Genera un código PIN aleatorio de 6 caracteres alfanuméricos único en la base de datos."""
+    chars = string.ascii_uppercase + string.digits
+    while True:
+        pin = "".join(random.choices(chars, k=6))
+        if not db.query(Room).filter_by(codigo=pin).first():
+            return pin
+
 
 
 def obtener_objetos_disponibles(db: Session, room_id: int) -> list[str]:

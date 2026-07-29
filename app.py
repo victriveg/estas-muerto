@@ -24,6 +24,14 @@ st.title("🔪 Estás Muerto")
 st.caption("Panel de control relacional multisala (SQLAlchemy)")
 
 # ---------------------------------------------------------
+# DETECCIÓN DE PARÁMETROS EN URL (?sala=CODIGO)
+# ---------------------------------------------------------
+url_params = st.query_params
+url_pin = url_params.get("sala") or url_params.get("pin")
+if url_pin:
+    url_pin = url_pin.strip().upper()
+
+# ---------------------------------------------------------
 # AUTENTICACIÓN Y GESTIÓN DE SESIÓN DE USUARIO
 # ---------------------------------------------------------
 current_user_id = st.session_state.get("user_id")
@@ -84,7 +92,39 @@ if not current_user:
 st.sidebar.markdown(f"👤 **Usuario:** `{current_user.nombre}`\n\n📧 `{current_user.email}`")
 if st.sidebar.button("🚪 Cerrar Sesión", use_container_width=True):
     st.session_state.pop("user_id", None)
+    st.session_state.pop("active_room_id", None)
     st.rerun()
+
+st.sidebar.markdown("---")
+
+# ---------------------------------------------------------
+# UNIRSE A SALA CON CÓDIGO PIN (SIDEBAR)
+# ---------------------------------------------------------
+st.sidebar.header("🎮 Unirse a una Sala por PIN")
+with st.sidebar.expander("🔑 Introducir Código PIN", expanded=bool(url_pin)):
+    pin_input_val = url_pin if url_pin else ""
+    pin_entered = st.text_input("Código PIN de 6 caracteres", value=pin_input_val, key="sidebar_pin_input")
+    if st.button("🚀 Unirme a la Sala", use_container_width=True, key="btn_join_pin"):
+        if pin_entered:
+            pin_clean = pin_entered.strip().upper()
+            room_found = db.query(Room).filter_by(codigo=pin_clean).first()
+            if room_found:
+                # Verificar o crear inscripción del usuario
+                player_existing = db.query(Player).filter_by(user_id=current_user.id, room_id=room_found.id).first()
+                if not player_existing:
+                    p_new = Player(user_id=current_user.id, room_id=room_found.id, estado="vivo", bajas=0, cambios_restantes=2)
+                    db.add(p_new)
+                    db.commit()
+                    st.success(f"¡Te has inscrito en **{room_found.nombre}**!")
+                else:
+                    st.info(f"Ya formas parte de **{room_found.nombre}**.")
+                
+                st.session_state["active_room_id"] = room_found.id
+                st.rerun()
+            else:
+                st.error("❌ Código PIN no válido o sala inexistente.")
+        else:
+            st.warning("Escribe el código PIN.")
 
 st.sidebar.markdown("---")
 
@@ -99,11 +139,19 @@ if not salas:
     db.refresh(def_room)
     salas = [def_room]
 
-# Sidebar: Selector de Sala
-st.sidebar.header("🏠 Gestión de Salas")
+# Determinar índice por defecto de la sala activa
 opciones_salas = {f"{r.nombre} [{r.codigo}] ({r.estado.upper()})": r.id for r in salas}
-sala_sel_key = st.sidebar.selectbox("Seleccionar Sala Activa:", list(opciones_salas.keys()))
+id_lista = list(opciones_salas.values())
+
+active_room_id_session = st.session_state.get("active_room_id")
+default_idx = 0
+if active_room_id_session and active_room_id_session in id_lista:
+    default_idx = id_lista.index(active_room_id_session)
+
+st.sidebar.header("🏠 Tus Salas")
+sala_sel_key = st.sidebar.selectbox("Seleccionar Sala Activa:", list(opciones_salas.keys()), index=default_idx)
 room_id = opciones_salas[sala_sel_key]
+st.session_state["active_room_id"] = room_id
 room_actual = db.query(Room).get(room_id)
 
 if not room_actual.host_id:
@@ -111,13 +159,15 @@ if not room_actual.host_id:
     db.commit()
 
 host_nombre = room_actual.host.nombre if room_actual.host else "Sin Host"
-st.sidebar.info(f"**Sala Activa:** {room_actual.nombre}\n\n👑 **Host:** {host_nombre}\n\n📌 **Estado:** `{room_actual.estado}`")
+
+# Info de la sala en Sidebar con opción de copiar PIN
+st.sidebar.info(f"**Sala Activa:** {room_actual.nombre}\n\n🔑 **PIN de la Sala:** `{room_actual.codigo}`\n\n👑 **Host:** {host_nombre}\n\n📌 **Estado:** `{room_actual.estado}`")
 
 is_host = (current_user.id == room_actual.host_id)
 player_active = db.query(Player).filter_by(user_id=current_user.id, room_id=room_id).first()
 
 # ---------------------------------------------------------
-# TARJETA DESTACADA: MI MISIÓN SECRETA (ACCESIBLE SIEMPRE SI ESTÁ VIVO)
+# TARJETA DESTACADA: MI MISIÓN SECRETA
 # ---------------------------------------------------------
 if player_active and player_active.estado == "vivo" and room_actual.estado == "en_juego":
     asig_secret = db.query(Assignment).filter_by(room_id=room_id, asesino_id=player_active.id).first()
@@ -197,7 +247,7 @@ with tab_estado:
         st.caption("Aún no se ha registrado ninguna baja en esta sala.")
 
 # =========================================================
-# PESTAÑA 2: REGISTRAR / CONFIRMAR BAJA (SISTEMA DUAL)
+# PESTAÑA 2: REGISTRAR / CONFIRMAR BAJA
 # =========================================================
 with tab_gestion:
     st.subheader("☠️ Registro y Confirmación de Asesinatos")
@@ -229,7 +279,7 @@ with tab_gestion:
                     st.rerun()
             st.markdown("---")
 
-    # 2. OPCIÓN JUGADOR: CONSULTAR Y MARCAR ASESINATO A SU VÍCTIMA
+    # 2. OPCIÓN JUGADOR: MARCAR ASESINATO A SU VÍCTIMA
     if player_active and player_active.estado == "vivo":
         asig_mi = db.query(Assignment).filter_by(room_id=room_id, asesino_id=player_active.id).first()
         if asig_mi:
@@ -294,6 +344,9 @@ with tab_setup:
     else:
         st.warning(f"ℹ️ El creador y administrador de esta sala es **{host_nombre}**. Tu rol actual es participante.")
 
+    # Tarjeta con Código PIN e invitación rápida
+    st.info(f"📢 **Comparte esta sala con tus amigos:**\n\n🔑 **Código PIN:** `{room_actual.codigo}`")
+
     # Botón directo para que el usuario autenticado se una a esta sala
     if not player_active:
         st.info(f"💡 No estás inscrito en la sala **{room_actual.nombre}**.")
@@ -304,16 +357,20 @@ with tab_setup:
             st.success(f"¡Te has unido a {room_actual.nombre}!")
             st.rerun()
 
-    # A. Crear Nueva Sala
+    # A. Crear Nueva Sala con Generación Automática de PIN
     with st.expander("🏠 Crear Nueva Sala", expanded=False):
         c_n1, c_n2 = st.columns(2)
         n_nombre = c_n1.text_input("Nombre de la Sala")
-        n_codigo = c_n2.text_input("Código de Sala (ej. SALA02)")
+        n_codigo = c_n2.text_input("Código PIN personalizado (opcional - 6 caracteres)")
         if st.button("➕ Crear Sala", use_container_width=True):
-            if n_nombre and n_codigo:
-                c_clean = n_codigo.strip().upper()
+            if n_nombre:
+                if n_codigo.strip():
+                    c_clean = n_codigo.strip().upper()
+                else:
+                    c_clean = game_logic.generar_codigo_pin(db)
+
                 if db.query(Room).filter_by(codigo=c_clean).first():
-                    st.error(f"❌ Ya existe una sala con el código '{c_clean}'.")
+                    st.error(f"❌ Ya existe una sala con el código PIN '{c_clean}'.")
                 else:
                     n_room = Room(codigo=c_clean, nombre=n_nombre.strip(), estado="espera", host_id=current_user.id)
                     db.add(n_room)
@@ -322,13 +379,14 @@ with tab_setup:
                     p_creator = Player(user_id=current_user.id, room_id=n_room.id, estado="vivo", bajas=0, cambios_restantes=2)
                     db.add(p_creator)
                     db.commit()
-                    st.success(f"Sala '{n_nombre}' creada e inscripciones abiertas. ¡Eres el Host!")
+                    st.session_state["active_room_id"] = n_room.id
+                    st.success(f"🎉 Sala '{n_nombre}' creada con éxito. Código PIN: **{c_clean}**.")
                     st.rerun()
             else:
-                st.warning("Por favor completa el nombre y el código de la sala.")
+                st.warning("Por favor completa el nombre de la sala.")
 
     # B. Agregar / Unir Otro Jugador a la Sala Activa
-    with st.expander("👤 Añadir Otro Jugador a esta Sala", expanded=True):
+    with st.expander("👤 Añadir Otro Jugador a esta Sala (Manual)", expanded=False):
         col1, col2 = st.columns(2)
         nuevo_nombre = col1.text_input("Nombre del Jugador")
         nuevo_email = col2.text_input("Correo Electrónico")
