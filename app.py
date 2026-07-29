@@ -164,7 +164,7 @@ st.sidebar.markdown("---")
 # ---------------------------------------------------------
 salas = db.query(Room).all()
 if not salas:
-    def_room = Room(codigo="SALA01", nombre="Sala Principal", estado="espera", host_id=current_user.id)
+    def_room = Room(codigo="SALA01", nombre="Sala Principal", estado="espera", host_id=current_user.id, modo_ciego=False)
     db.add(def_room)
     db.commit()
     db.refresh(def_room)
@@ -199,9 +199,10 @@ if auto_rotated:
 host_nombre = room_actual.host.nombre if room_actual.host else "Sin Host"
 proxima_rot = game_logic.calcular_proxima_rotacion(room_actual)
 proxima_rot_str = proxima_rot.strftime("%Y-%m-%d %H:%M") if proxima_rot else "No programada"
+modo_ciego_txt = "🎭 **Activado**" if room_actual.modo_ciego else "👁️ **Desactivado**"
 
 # Info de la sala en Sidebar
-st.sidebar.info(f"**Sala Activa:** {room_actual.nombre}\n\n🔑 **PIN:** `{room_actual.codigo}`\n\n👑 **Host:** {host_nombre}\n\n📌 **Estado:** `{room_actual.estado}`\n\n⏱️ **Próxima Rotación (8am):** `{proxima_rot_str}`")
+st.sidebar.info(f"**Sala Activa:** {room_actual.nombre}\n\n🔑 **PIN:** `{room_actual.codigo}`\n\n👑 **Host:** {host_nombre}\n\n🎭 **Asesino Ciego:** {modo_ciego_txt}\n\n📌 **Estado:** `{room_actual.estado}`\n\n⏱️ **Próxima Rotación (8am):** `{proxima_rot_str}`")
 
 is_host = (current_user.id == room_actual.host_id)
 player_active = db.query(Player).filter_by(user_id=current_user.id, room_id=room_id).first()
@@ -236,20 +237,31 @@ tab_estado, tab_gestion, tab_setup, tab_rotacion = st.tabs([
 with tab_estado:
     st.subheader(f"🟢 Supervivientes - {room_actual.nombre}")
     
-    vivos_players = db.query(Player).filter_by(room_id=room_id, estado="vivo").all()
-    
-    if vivos_players:
-        tabla_vivos = []
-        for p in vivos_players:
-            tabla_vivos.append({
-                "Nombre": p.user.nombre,
-                "Email": p.user.email,
-                "Bajas": p.bajas,
-                "Cambios Restantes": p.cambios_restantes
-            })
-        st.dataframe(pd.DataFrame(tabla_vivos), hide_index=True, use_container_width=True)
+    # Comprobar Modo Asesino Ciego en partida activa
+    if room_actual.modo_ciego and room_actual.estado == "en_juego" and not is_host:
+        st.warning("🎭 **MODO ASESINO CIEGO ACTIVADO**")
+        st.markdown("""
+        *Las identidades de los supervivientes y la lista de jugadores vivos permanecen ocultas en las sombras.* 
+        ¡Solo sabrás quién sigue con vida cuando aparezcan las bajas en el historial!
+        """)
     else:
-        st.info("No hay jugadores vivos actualmente en esta sala.")
+        if room_actual.modo_ciego and is_host:
+            st.caption("👑 *(Visión exclusiva de Host en Modo Asesino Ciego)*")
+
+        vivos_players = db.query(Player).filter_by(room_id=room_id, estado="vivo").all()
+        
+        if vivos_players:
+            tabla_vivos = []
+            for p in vivos_players:
+                tabla_vivos.append({
+                    "Nombre": p.user.nombre,
+                    "Email": p.user.email,
+                    "Bajas": p.bajas,
+                    "Cambios Restantes": p.cambios_restantes
+                })
+            st.dataframe(pd.DataFrame(tabla_vivos), hide_index=True, use_container_width=True)
+        else:
+            st.info("No hay jugadores vivos actualmente en esta sala.")
 
     st.markdown("---")
     st.subheader("🥇 Ranking de Asesinos")
@@ -386,6 +398,15 @@ with tab_setup:
 
     st.info(f"📢 **Comparte esta sala con tus amigos:**\n\n🔑 **Código PIN:** `{room_actual.codigo}`\n\n⏱️ **Rotación Programada:** Cada 3 días a las 8:00 AM (Próxima: `{proxima_rot_str}`)")
 
+    # Ajuste del Modo Asesino Ciego para el Host
+    if is_host:
+        new_ciego = st.checkbox("🎭 **Activar modo 'Asesino Ciego'** (Oculta la lista de supervivientes vivos a los jugadores)", value=room_actual.modo_ciego, key="chk_modo_ciego_setup")
+        if new_ciego != room_actual.modo_ciego:
+            room_actual.modo_ciego = new_ciego
+            db.commit()
+            st.success(f"Modo Asesino Ciego {'activado' if new_ciego else 'desactivado'}.")
+            st.rerun()
+
     # Botón directo para que el usuario autenticado se una a esta sala
     if not player_active:
         st.info(f"💡 No estás inscrito en la sala **{room_actual.nombre}**.")
@@ -396,11 +417,13 @@ with tab_setup:
             st.success(f"¡Te has unido a {room_actual.nombre}!")
             st.rerun()
 
-    # A. Crear Nueva Sala con Generación Automática de PIN
+    # A. Crear Nueva Sala con Generación Automática de PIN y Modo Ciego
     with st.expander("🏠 Crear Nueva Sala", expanded=False):
         c_n1, c_n2 = st.columns(2)
         n_nombre = c_n1.text_input("Nombre de la Sala")
         n_codigo = c_n2.text_input("Código PIN personalizado (opcional - 6 caracteres)")
+        n_ciego_opt = st.checkbox("🎭 Activar modo 'Asesino Ciego' en esta nueva sala", key="chk_ciego_create")
+
         if st.button("➕ Crear Sala", use_container_width=True):
             if n_nombre:
                 if n_codigo.strip():
@@ -411,7 +434,7 @@ with tab_setup:
                 if db.query(Room).filter_by(codigo=c_clean).first():
                     st.error(f"❌ Ya existe una sala con el código PIN '{c_clean}'.")
                 else:
-                    n_room = Room(codigo=c_clean, nombre=n_nombre.strip(), estado="espera", host_id=current_user.id)
+                    n_room = Room(codigo=c_clean, nombre=n_nombre.strip(), estado="espera", host_id=current_user.id, modo_ciego=n_ciego_opt)
                     db.add(n_room)
                     db.commit()
                     db.refresh(n_room)
@@ -512,7 +535,8 @@ with tab_setup:
                         nombre_victima=victima_p.user.nombre,
                         objeto=asig.objeto,
                         vivos_lista=vivos_nombres,
-                        historial_bajas=[]
+                        historial_bajas=[],
+                        modo_ciego=room_actual.modo_ciego
                     )
                     email_service.send_email(
                         to_email=asesino_p.user.email,
@@ -591,7 +615,8 @@ with tab_rotacion:
                         nombre_victima=victima_p.user.nombre,
                         objeto=asig.objeto,
                         vivos_lista=vivos_nombres,
-                        historial_bajas=[]
+                        historial_bajas=[],
+                        modo_ciego=room_actual.modo_ciego
                     )
                     email_service.send_email(
                         to_email=asesino_p.user.email,

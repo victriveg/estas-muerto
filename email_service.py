@@ -43,11 +43,14 @@ def send_email(to_email, subject, body_html):
         return False
 
 
-def build_assignment_email_html(nombre_asesino, nombre_victima, objeto, vivos_lista, historial_bajas=None):
+def build_assignment_email_html(nombre_asesino, nombre_victima, objeto, vivos_lista, historial_bajas=None, modo_ciego=False):
     """
     Construye la plantilla HTML del correo para un jugador con su objetivo asignado.
     """
-    vivos_html = "".join([f"<li>{v}</li>" for v in vivos_lista])
+    if modo_ciego:
+        vivos_html = "<li>🎭 <i>Modo Asesino Ciego Activado: Las identidades de los supervivientes permanecen en las sombras.</i></li>"
+    else:
+        vivos_html = "".join([f"<li>{v}</li>" for v in vivos_lista])
     
     bajas_html = ""
     if historial_bajas:

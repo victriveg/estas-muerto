@@ -1,6 +1,6 @@
 from datetime import datetime
 from sqlalchemy import (
-    Column, Integer, String, DateTime, ForeignKey, UniqueConstraint, Text
+    Column, Integer, String, DateTime, ForeignKey, UniqueConstraint, Text, Boolean
 )
 from sqlalchemy.orm import relationship
 from database import Base
@@ -31,6 +31,7 @@ class Room(Base):
     nombre = Column(String(100), nullable=False)
     estado = Column(String(20), default="espera", nullable=False)  # 'espera', 'en_juego', 'finalizada'
     host_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    modo_ciego = Column(Boolean, default=False, nullable=False)
     fecha_inicio = Column(DateTime, nullable=True)
     ultima_rotacion = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
