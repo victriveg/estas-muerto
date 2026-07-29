@@ -29,6 +29,8 @@ class Room(Base):
     nombre = Column(String(100), nullable=False)
     estado = Column(String(20), default="espera", nullable=False)  # 'espera', 'en_juego', 'finalizada'
     host_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    fecha_inicio = Column(DateTime, nullable=True)
+    ultima_rotacion = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # Relaciones pertenecientes a esta sala

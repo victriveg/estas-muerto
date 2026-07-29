@@ -109,7 +109,6 @@ with st.sidebar.expander("🔑 Introducir Código PIN", expanded=bool(url_pin)):
             pin_clean = pin_entered.strip().upper()
             room_found = db.query(Room).filter_by(codigo=pin_clean).first()
             if room_found:
-                # Verificar o crear inscripción del usuario
                 player_existing = db.query(Player).filter_by(user_id=current_user.id, room_id=room_found.id).first()
                 if not player_existing:
                     p_new = Player(user_id=current_user.id, room_id=room_found.id, estado="vivo", bajas=0, cambios_restantes=2)
@@ -158,10 +157,19 @@ if not room_actual.host_id:
     room_actual.host_id = current_user.id
     db.commit()
 
-host_nombre = room_actual.host.nombre if room_actual.host else "Sin Host"
+# ---------------------------------------------------------
+# VERIFICACIÓN DE ROTACIÓN AUTOMÁTICA CADA 3 DÍAS A LAS 8:00 AM
+# ---------------------------------------------------------
+auto_rotated = game_logic.verificar_rotacion_automatica(db, room_id)
+if auto_rotated:
+    st.success("🔄 **¡ROTACIÓN AUTOMÁTICA EJECUTADA!** Al cumplirse 3 días (8:00 AM), se han reordenado los objetivos y armas de esta sala.")
 
-# Info de la sala en Sidebar con opción de copiar PIN
-st.sidebar.info(f"**Sala Activa:** {room_actual.nombre}\n\n🔑 **PIN de la Sala:** `{room_actual.codigo}`\n\n👑 **Host:** {host_nombre}\n\n📌 **Estado:** `{room_actual.estado}`")
+host_nombre = room_actual.host.nombre if room_actual.host else "Sin Host"
+proxima_rot = game_logic.calcular_proxima_rotacion(room_actual)
+proxima_rot_str = proxima_rot.strftime("%Y-%m-%d %H:%M") if proxima_rot else "No programada"
+
+# Info de la sala en Sidebar
+st.sidebar.info(f"**Sala Activa:** {room_actual.nombre}\n\n🔑 **PIN:** `{room_actual.codigo}`\n\n👑 **Host:** {host_nombre}\n\n📌 **Estado:** `{room_actual.estado}`\n\n⏱️ **Próxima Rotación (8am):** `{proxima_rot_str}`")
 
 is_host = (current_user.id == room_actual.host_id)
 player_active = db.query(Player).filter_by(user_id=current_user.id, room_id=room_id).first()
@@ -344,8 +352,7 @@ with tab_setup:
     else:
         st.warning(f"ℹ️ El creador y administrador de esta sala es **{host_nombre}**. Tu rol actual es participante.")
 
-    # Tarjeta con Código PIN e invitación rápida
-    st.info(f"📢 **Comparte esta sala con tus amigos:**\n\n🔑 **Código PIN:** `{room_actual.codigo}`")
+    st.info(f"📢 **Comparte esta sala con tus amigos:**\n\n🔑 **Código PIN:** `{room_actual.codigo}`\n\n⏱️ **Rotación Programada:** Cada 3 días a las 8:00 AM (Próxima: `{proxima_rot_str}`)")
 
     # Botón directo para que el usuario autenticado se una a esta sala
     if not player_active:
@@ -533,9 +540,10 @@ with tab_rotacion:
     st.markdown("---")
     st.subheader("🔄 Rotación Periódica General")
     st.write("Reorganiza los objetivos y armas entre todos los supervivientes de esta sala.")
+    st.info(f"⏱️ **Próxima rotación automática programada:** `{proxima_rot_str}` (Cada 3 días a las 8:00 AM).")
 
     if is_host:
-        if st.button("🔀 Ejecutar Rotación de Sala", type="primary", use_container_width=True):
+        if st.button("🔀 Ejecutar Rotación Manual de Sala", type="primary", use_container_width=True):
             try:
                 asignaciones = game_logic.generar_ciclo_cerrado(db, room_id)
                 st.success("✅ ¡Rotación realizada correctamente!")
@@ -564,7 +572,7 @@ with tab_rotacion:
             except Exception as e:
                 st.error(f"Error al rotar sala: {e}")
     else:
-        st.warning(f"🔒 La rotación periódica de la sala solo puede ser ejecutada por el Host (**{host_nombre}**).")
+        st.warning(f"🔒 La rotación periódica manual solo puede ser ejecutada por el Host (**{host_nombre}**).")
 
 # Cerrar sesión DB al final de la ejecución
 db.close()

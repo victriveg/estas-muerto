@@ -1,6 +1,6 @@
 import random
 import string
-from datetime import datetime
+from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from models import Room, Player, Assignment, GameObject, HistoryLog, KillClaim
 
@@ -72,9 +72,58 @@ def generar_ciclo_cerrado(db: Session, room_id: int) -> list[Assignment]:
     room = db.query(Room).get(room_id)
     if room:
         room.estado = "en_juego"
+        now = datetime.utcnow()
+        if not room.fecha_inicio:
+            room.fecha_inicio = now
+        room.ultima_rotacion = now
 
     db.commit()
     return nuevas_asignaciones
+
+
+def calcular_proxima_rotacion(room: Room) -> datetime | None:
+    """
+    Calcula la fecha y hora de la próxima rotación (cada 3 días a las 8:00 AM) 
+    basada en la fecha de la última rotación o inicio de partida.
+    """
+    if room.estado != "en_juego":
+        return None
+
+    base_dt = room.ultima_rotacion or room.fecha_inicio or room.created_at
+    if not base_dt:
+        return None
+
+    target_dt = base_dt + timedelta(days=3)
+    proxima_8am = target_dt.replace(hour=8, minute=0, second=0, microsecond=0)
+    
+    if proxima_8am <= base_dt:
+        proxima_8am += timedelta(days=1)
+        
+    return proxima_8am
+
+
+def verificar_rotacion_automatica(db: Session, room_id: int) -> bool:
+    """
+    Comprueba si se debe ejecutar la rotación automática (cada 3 días a las 8:00 AM).
+    Si corresponde, la ejecuta y devuelve True.
+    """
+    room = db.query(Room).get(room_id)
+    if not room or room.estado != "en_juego":
+        return False
+
+    proxima_rot = calcular_proxima_rotacion(room)
+    if not proxima_rot:
+        return False
+
+    now = datetime.utcnow()
+    if now >= proxima_rot:
+        generar_ciclo_cerrado(db, room_id)
+        room.ultima_rotacion = now
+        db.commit()
+        return True
+
+    return False
+
 
 
 def registrar_baja(db: Session, room_id: int, asesino_player_id: int) -> dict:
