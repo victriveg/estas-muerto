@@ -230,3 +230,47 @@ def send_item_change_email(to_email, nombre_jugador, nuevo_objeto, cambios_resta
     subject = "🔄 [CAMBIO DE ARMA] Tu nueva arma ha sido asignada - Estás Muerto"
     return send_email(to_email=to_email, subject=subject, body_html=html_msg)
 
+
+def build_password_reset_email_html(nombre_usuario, token):
+    """
+    Construye la plantilla HTML del correo para el restablecimiento de contraseña.
+    """
+    html = f"""
+    <html>
+    <body style="font-family: Arial, sans-serif; background-color: #121212; color: #ffffff; padding: 20px;">
+        <div style="max-width: 500px; margin: 0 auto; background: #1e1e1e; padding: 25px; border-radius: 12px; border: 1px solid #333;">
+            <h2 style="color: #e74c3c; text-align: center; margin-bottom: 5px;">🔪 ESTÁS MUERTO 🔪</h2>
+            <p style="text-align: center; color: #888; font-size: 14px;">🔑 RECUPERACIÓN DE CONTRASEÑA</p>
+            <hr style="border: 0; border-top: 1px solid #444; margin: 20px 0;">
+            
+            <p>Hola <b>{nombre_usuario}</b>,</p>
+            <p>Hemos recibido una solicitud para restablecer la contraseña de tu cuenta.</p>
+            
+            <div style="background: #2a2a2a; padding: 20px; border-radius: 8px; margin: 20px 0; text-align: center; border: 1px solid #4cc9f0;">
+                <p style="margin: 0; color: #aaa; font-size: 13px;">TU CÓDIGO DE RECUPERACIÓN (OTP)</p>
+                <h1 style="color: #4cc9f0; font-size: 36px; letter-spacing: 5px; margin: 10px 0;">{token}</h1>
+                <p style="margin: 0; color: #888; font-size: 12px;">Este código caducará en 15 minutos.</p>
+            </div>
+            
+            <p style="font-size: 13px; color: #aaa;">
+                💡 <i>Si no has sido tú quien solicitó este cambio, puedes ignorar este correo de forma segura.</i>
+            </p>
+            
+            <hr style="border: 0; border-top: 1px solid #333; margin: 20px 0;">
+            <p style="text-align: center; font-size: 11px; color: #666;">Juego "Estás Muerto" - Panel de Control</p>
+        </div>
+    </body>
+    </html>
+    """
+    return html
+
+
+def send_password_reset_email(to_email, nombre_usuario, token):
+    """
+    Envía el correo electrónico con el código OTP para restablecer la contraseña.
+    """
+    html_msg = build_password_reset_email_html(nombre_usuario, token)
+    subject = "🔑 [RESTABLECER CONTRASEÑA] Tu código de recuperación - Estás Muerto"
+    return send_email(to_email=to_email, subject=subject, body_html=html_msg)
+
+

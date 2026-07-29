@@ -59,6 +59,38 @@ if not current_user:
             else:
                 st.warning("Rellena todos los campos.")
 
+        st.markdown("---")
+        with st.expander("🔑 ¿Olvidaste tu contraseña?", expanded=False):
+            st.caption("Solicita un código de recuperación de 6 dígitos que enviaremos a tu correo electrónico.")
+            reset_email = st.text_input("Ingresa tu Correo Electrónico", key="reset_email_input")
+            
+            if st.button("📩 Enviar Código de Recuperación", use_container_width=True, key="btn_send_reset_code"):
+                if reset_email:
+                    try:
+                        token, u_reset = auth.request_password_reset(db, reset_email)
+                        email_service.send_password_reset_email(u_reset.email, u_reset.nombre, token)
+                        st.success(f"📩 Código de 6 dígitos enviado a **{u_reset.email}**. Revisa tu bandeja de entrada.")
+                    except Exception as e:
+                        st.error(f"Error: {e}")
+                else:
+                    st.warning("Escribe tu correo electrónico.")
+
+            st.markdown("---")
+            st.caption("Ingresa el código OTP recibido para cambiar tu contraseña:")
+            col_r1, col_r2 = st.columns(2)
+            reset_code_in = col_r1.text_input("Código de 6 dígitos", key="reset_code_in")
+            new_pass_in = col_r2.text_input("Nueva Contraseña", type="password", key="new_pass_in")
+
+            if st.button("🔒 Restablecer Contraseña", type="primary", use_container_width=True, key="btn_confirm_reset_pass"):
+                if reset_email and reset_code_in and new_pass_in:
+                    try:
+                        auth.reset_password_with_token(db, reset_email, reset_code_in, new_pass_in)
+                        st.success("🎉 ¡Contraseña restablecida con éxito! Ya puedes iniciar sesión con tu nueva clave.")
+                    except Exception as e:
+                        st.error(f"Error al restablecer: {e}")
+                else:
+                    st.warning("Completa todos los campos para restablecer la contraseña.")
+
     with tab_register:
         st.subheader("📝 Crear Cuenta")
         name_reg = st.text_input("Tu Nombre / Apodo", key="reg_name")

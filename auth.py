@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 import hashlib
 import secrets
 from sqlalchemy.orm import Session
@@ -52,3 +53,38 @@ def authenticate_user(db: Session, email: str, password: str) -> User | None:
     if verify_password(password, user.password_hash):
         return user
     return None
+
+
+def request_password_reset(db: Session, email: str) -> tuple[str, User]:
+    """Genera un código OTP de 6 dígitos con expiración de 15 minutos para el usuario."""
+    email_clean = email.strip().lower()
+    user = db.query(User).filter_by(email=email_clean).first()
+    if not user:
+        raise ValueError(f"No existe ningún usuario registrado con el correo '{email_clean}'.")
+
+    token = f"{secrets.randbelow(900000) + 100000}"
+    user.reset_token = token
+    user.reset_token_expires = datetime.utcnow() + timedelta(minutes=15)
+    db.commit()
+    db.refresh(user)
+    return token, user
+
+
+def reset_password_with_token(db: Session, email: str, token: str, new_password: str) -> bool:
+    """Valida el código OTP e impone la nueva contraseña para el usuario."""
+    email_clean = email.strip().lower()
+    user = db.query(User).filter_by(email=email_clean).first()
+    if not user or not user.reset_token or not user.reset_token_expires:
+        raise ValueError("No hay ninguna solicitud de restablecimiento activa.")
+
+    if user.reset_token != token.strip():
+        raise ValueError("El código de recuperación introducido no es válido.")
+
+    if user.reset_token_expires < datetime.utcnow():
+        raise ValueError("El código de recuperación ha caducado. Por favor solicita uno nuevo.")
+
+    user.password_hash = hash_password(new_password)
+    user.reset_token = None
+    user.reset_token_expires = None
+    db.commit()
+    return True
