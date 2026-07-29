@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 import hashlib
 import secrets
 from sqlalchemy.orm import Session
-from models import User
+from models import User, Room, Player
 
 
 def hash_password(password: str) -> str:
@@ -70,6 +70,9 @@ def request_password_reset(db: Session, email: str) -> tuple[str, User]:
     return token, user
 
 
+from models import User, Room, Player
+
+...
 def reset_password_with_token(db: Session, email: str, token: str, new_password: str) -> bool:
     """Valida el código OTP e impone la nueva contraseña para el usuario."""
     email_clean = email.strip().lower()
@@ -88,3 +91,59 @@ def reset_password_with_token(db: Session, email: str, token: str, new_password:
     user.reset_token_expires = None
     db.commit()
     return True
+
+
+def obtener_estadisticas_usuario(db: Session, user_id: int) -> dict:
+    """Calcula las estadísticas globales acumuladas del usuario e insignias desbloqueadas."""
+    players = db.query(Player).filter_by(user_id=user_id).all()
+
+    partidas_jugadas = len(players)
+    total_kills = sum(p.bajas for p in players)
+
+    partidas_ganadas = 0
+    for p in players:
+        room = db.query(Room).get(p.room_id)
+        if room and room.estado == "finalizada" and p.estado == "vivo":
+            partidas_ganadas += 1
+
+    insignias = [
+        {
+            "nombre": "🩸 Primera Sangre",
+            "descripcion": "Consigue tu primer asesinato en cualquier partida.",
+            "desbloqueado": total_kills >= 1
+        },
+        {
+            "nombre": "🔪 Asesino en Serie",
+            "descripcion": "Acumula 5 o más bajas en tu historial global.",
+            "desbloqueado": total_kills >= 5
+        },
+        {
+            "nombre": "👑 Superviviente Supremo",
+            "descripcion": "Gana al menos 1 partida como único superviviente.",
+            "desbloqueado": partidas_ganadas >= 1
+        },
+        {
+            "nombre": "🏆 Leyenda del Juego",
+            "descripcion": "Gana 3 o más partidas en la plataforma.",
+            "desbloqueado": partidas_ganadas >= 3
+        },
+        {
+            "nombre": "🛡️ Veterano de Guerra",
+            "descripcion": "Participa en 5 o más salas de juego.",
+            "desbloqueado": partidas_jugadas >= 5
+        },
+        {
+            "nombre": "🎲 Estratega del Cambio",
+            "descripcion": "Ejecuta al menos 1 cambio individual de arma.",
+            "desbloqueado": any(p.cambios_restantes < 2 for p in players)
+        }
+    ]
+
+    return {
+        "partidas_jugadas": partidas_jugadas,
+        "partidas_ganadas": partidas_ganadas,
+        "total_kills": total_kills,
+        "insignias": insignias,
+        "players": players
+    }
+

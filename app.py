@@ -227,8 +227,8 @@ if player_active and player_active.estado == "vivo" and room_actual.estado == "e
 # ---------------------------------------------------------
 # INTERFAZ PRINCIPAL EN PESTAÑAS
 # ---------------------------------------------------------
-tab_estado, tab_gestion, tab_setup, tab_rotacion = st.tabs([
-    "🏆 Estado", "🔪 Baja", "⚙️ Setup", "🔄 Rotación/Cambio"
+tab_estado, tab_gestion, tab_setup, tab_rotacion, tab_perfil = st.tabs([
+    "🏆 Estado", "🔪 Baja", "⚙️ Setup", "🔄 Rotación/Cambio", "👤 Mi Perfil"
 ])
 
 # =========================================================
@@ -630,6 +630,53 @@ with tab_rotacion:
                 st.error(f"Error al rotar sala: {e}")
     else:
         st.warning(f"🔒 La rotación periódica manual solo puede ser ejecutada por el Host (**{host_nombre}**).")
+
+# =========================================================
+# PESTAÑA 5: PERFIL DE USUARIO Y INSIGNIAS (PLAYER BADGES)
+# =========================================================
+with tab_perfil:
+    st.subheader(f"👤 Perfil de {current_user.nombre}")
+    fecha_reg = current_user.created_at.strftime('%Y-%m-%d') if current_user.created_at else "Reciente"
+    st.caption(f"📧 Correo: `{current_user.email}` | 📅 Registrado el: {fecha_reg}")
+
+    stats = auth.obtener_estadisticas_usuario(db, current_user.id)
+
+    # Métricas Globales
+    m1, m2, m3 = st.columns(3)
+    m1.metric("🎮 Partidas Jugadas", stats["partidas_jugadas"])
+    m2.metric("🏆 Partidas Ganadas", stats["partidas_ganadas"])
+    m3.metric("🔪 Kills Totales", stats["total_kills"])
+
+    st.markdown("---")
+    st.subheader("🎖️ Insignias y Logros")
+
+    cols = st.columns(2)
+    for idx, badge in enumerate(stats["insignias"]):
+        col = cols[idx % 2]
+        with col:
+            if badge["desbloqueado"]:
+                st.success(f"**{badge['nombre']}**\n\n{badge['descripcion']}\n\n✅ *¡Desbloqueado!*")
+            else:
+                st.info(f"**{badge['nombre']}** (Bloqueado)\n\n{badge['descripcion']}\n\n🔒 *En progreso...*")
+
+    st.markdown("---")
+    st.subheader("📋 Historial de Salas del Jugador")
+    if stats["players"]:
+        historial_salas = []
+        for p in stats["players"]:
+            r = db.query(Room).get(p.room_id)
+            if r:
+                historial_salas.append({
+                    "Sala": r.nombre,
+                    "Código PIN": r.codigo,
+                    "Estado Sala": r.estado.upper(),
+                    "Tu Estado": p.estado.capitalize(),
+                    "Tus Kills": p.bajas,
+                    "Cambios Restantes": p.cambios_restantes
+                })
+        st.dataframe(pd.DataFrame(historial_salas), hide_index=True, use_container_width=True)
+    else:
+        st.caption("Aún no te has inscrito en ninguna sala.")
 
 # Cerrar sesión DB al final de la ejecución
 db.close()
