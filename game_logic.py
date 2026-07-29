@@ -183,6 +183,7 @@ def registrar_baja(db: Session, room_id: int, asesino_player_id: int) -> dict:
     if len(vivos_restantes) == 1:
         partida_finalizada = True
         ganador = vivos_restantes[0]
+        db.delete(asig_asesino)
         room = db.query(Room).get(room_id)
         if room:
             room.estado = "finalizada"

@@ -185,6 +185,10 @@ room_id = opciones_salas[sala_sel_key]
 st.session_state["active_room_id"] = room_id
 room_actual = db.query(Room).get(room_id)
 
+if not room_actual:
+    st.session_state.pop("active_room_id", None)
+    st.rerun()
+
 if not room_actual.host_id:
     room_actual.host_id = current_user.id
     db.commit()
