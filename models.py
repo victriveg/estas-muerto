@@ -28,9 +28,11 @@ class Room(Base):
     codigo = Column(String(10), unique=True, index=True, nullable=False)  # Código único de sala (ej. 'GAME12')
     nombre = Column(String(100), nullable=False)
     estado = Column(String(20), default="espera", nullable=False)  # 'espera', 'en_juego', 'finalizada'
+    host_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # Relaciones pertenecientes a esta sala
+    host = relationship("User", foreign_keys=[host_id])
     players = relationship("Player", back_populates="room", cascade="all, delete-orphan")
     assignments = relationship("Assignment", back_populates="room", cascade="all, delete-orphan")
     history_logs = relationship("HistoryLog", back_populates="room", cascade="all, delete-orphan")

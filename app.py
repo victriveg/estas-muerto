@@ -94,7 +94,7 @@ st.sidebar.markdown("---")
 salas = db.query(Room).all()
 if not salas:
     # Crear sala por defecto si la base de datos es nueva
-    def_room = Room(codigo="SALA01", nombre="Sala Principal", estado="espera")
+    def_room = Room(codigo="SALA01", nombre="Sala Principal", estado="espera", host_id=current_user.id)
     db.add(def_room)
     db.commit()
     db.refresh(def_room)
@@ -107,7 +107,16 @@ sala_sel_key = st.sidebar.selectbox("Seleccionar Sala Activa:", list(opciones_sa
 room_id = opciones_salas[sala_sel_key]
 room_actual = db.query(Room).get(room_id)
 
-st.sidebar.info(f"**Sala Activa:** {room_actual.nombre}\n\n**Estado:** `{room_actual.estado}`")
+# Si la sala no tiene host_id, asignar al usuario actual
+if not room_actual.host_id:
+    room_actual.host_id = current_user.id
+    db.commit()
+
+host_nombre = room_actual.host.nombre if room_actual.host else "Sin Host"
+st.sidebar.info(f"**Sala Activa:** {room_actual.nombre}\n\n👑 **Host:** {host_nombre}\n\n📌 **Estado:** `{room_actual.estado}`")
+
+# Verificar si el usuario actual es el Host de la sala activa
+is_host = (current_user.id == room_actual.host_id)
 
 # Auto-inscribir al usuario activo en la sala si aún no lo está
 player_active = db.query(Player).filter_by(user_id=current_user.id, room_id=room_id).first()
@@ -235,6 +244,11 @@ with tab_gestion:
 with tab_setup:
     st.subheader("⚙️ Configuración de la Partida y Sala")
 
+    if is_host:
+        st.success(f"👑 **Eres el Host (Creador) de la sala {room_actual.nombre}.** Tienes permisos completos de administración.")
+    else:
+        st.warning(f"ℹ️ El creador y administrador de esta sala es **{host_nombre}**. Tu rol actual es participante.")
+
     # Botón directo para que el usuario autenticado se una a esta sala
     if not player_active:
         st.info(f"💡 No estás inscrito en la sala **{room_actual.nombre}**.")
@@ -256,7 +270,7 @@ with tab_setup:
                 if db.query(Room).filter_by(codigo=c_clean).first():
                     st.error(f"❌ Ya existe una sala con el código '{c_clean}'.")
                 else:
-                    n_room = Room(codigo=c_clean, nombre=n_nombre.strip(), estado="espera")
+                    n_room = Room(codigo=c_clean, nombre=n_nombre.strip(), estado="espera", host_id=current_user.id)
                     db.add(n_room)
                     db.commit()
                     db.refresh(n_room)
@@ -264,7 +278,7 @@ with tab_setup:
                     p_creator = Player(user_id=current_user.id, room_id=n_room.id, estado="vivo", bajas=0, cambios_restantes=2)
                     db.add(p_creator)
                     db.commit()
-                    st.success(f"Sala '{n_nombre}' creada e inscripciones abiertas.")
+                    st.success(f"Sala '{n_nombre}' creada e inscripciones abiertas. ¡Eres el Host!")
                     st.rerun()
             else:
                 st.warning("Por favor completa el nombre y el código de la sala.")
@@ -315,62 +329,68 @@ with tab_setup:
 
     # C. Catálogo de Objetos / Armas
     with st.expander("🛋️ Catálogo de Objetos / Armas", expanded=False):
-        nuevo_obj = st.text_input("Nuevo Objeto para esta sala")
-        if st.button("➕ Agregar Objeto", use_container_width=True):
-            if nuevo_obj:
-                o_clean = nuevo_obj.strip()
-                obj_exist = db.query(GameObject).filter(
-                    (GameObject.nombre_objeto == o_clean) & 
-                    ((GameObject.room_id == None) | (GameObject.room_id == room_id))
-                ).first()
-                if obj_exist:
-                    st.error("El objeto ya existe en el catálogo.")
-                else:
-                    o_new = GameObject(nombre_objeto=o_clean, room_id=room_id)
-                    db.add(o_new)
-                    db.commit()
-                    st.success(f"Objeto '{o_clean}' añadido al catálogo.")
-                    st.rerun()
+        if is_host:
+            nuevo_obj = st.text_input("Nuevo Objeto para esta sala")
+            if st.button("➕ Agregar Objeto", use_container_width=True):
+                if nuevo_obj:
+                    o_clean = nuevo_obj.strip()
+                    obj_exist = db.query(GameObject).filter(
+                        (GameObject.nombre_objeto == o_clean) & 
+                        ((GameObject.room_id == None) | (GameObject.room_id == room_id))
+                    ).first()
+                    if obj_exist:
+                        st.error("El objeto ya existe en el catálogo.")
+                    else:
+                        o_new = GameObject(nombre_objeto=o_clean, room_id=room_id)
+                        db.add(o_new)
+                        db.commit()
+                        st.success(f"Objeto '{o_clean}' añadido al catálogo.")
+                        st.rerun()
+        else:
+            st.caption("🔒 Solo el Host de la sala puede agregar nuevos objetos al catálogo.")
 
         objs_disponibles = game_logic.obtener_objetos_disponibles(db, room_id)
         st.dataframe(pd.DataFrame([{"Objeto": o} for o in objs_disponibles]), hide_index=True, use_container_width=True)
 
     st.markdown("---")
-    # D. Iniciar Partida
+    # D. Iniciar Partida (Restringido al Host)
     st.subheader("🚀 Iniciar Partida & Repartir Víctimas")
     st.caption("Al pulsar este botón se iniciará el ciclo cerrado de asesinatos para los jugadores vivos de esta sala.")
 
-    if st.button("💥 INICIAR PARTIDA Y ENVIAR CORREOS", type="primary", use_container_width=True):
-        try:
-            asignaciones = game_logic.generar_ciclo_cerrado(db, room_id)
-            st.success("✅ ¡Partida iniciada! Se han generado los ciclos de asignación.")
+    if is_host:
+        if st.button("💥 INICIAR PARTIDA Y ENVIAR CORREOS", type="primary", use_container_width=True):
+            try:
+                asignaciones = game_logic.generar_ciclo_cerrado(db, room_id)
+                st.success("✅ ¡Partida iniciada! Se han generado los ciclos de asignación.")
 
-            # Enviar correos iniciales
-            vivos_nombres = [p.user.nombre for p in db.query(Player).filter_by(room_id=room_id, estado="vivo").all()]
-            progress = st.progress(0)
-            for idx, asig in enumerate(asignaciones):
-                asesino_p = db.query(Player).get(asig.asesino_id)
-                victima_p = db.query(Player).get(asig.victima_id)
+                # Enviar correos iniciales
+                vivos_nombres = [p.user.nombre for p in db.query(Player).filter_by(room_id=room_id, estado="vivo").all()]
+                progress = st.progress(0)
+                for idx, asig in enumerate(asignaciones):
+                    asesino_p = db.query(Player).get(asig.asesino_id)
+                    victima_p = db.query(Player).get(asig.victima_id)
+                    
+                    html_msg = email_service.build_assignment_email_html(
+                        nombre_asesino=asesino_p.user.nombre,
+                        nombre_victima=victima_p.user.nombre,
+                        objeto=asig.objeto,
+                        vivos_lista=vivos_nombres,
+                        historial_bajas=[]
+                    )
+                    email_service.send_email(
+                        to_email=asesino_p.user.email,
+                        subject="🔪 [INICIO DE PARTIDA] Tu objetivo ha sido asignado - Estás Muerto",
+                        body_html=html_msg
+                    )
+                    progress.progress((idx + 1) / len(asignaciones))
                 
-                html_msg = email_service.build_assignment_email_html(
-                    nombre_asesino=asesino_p.user.nombre,
-                    nombre_victima=victima_p.user.nombre,
-                    objeto=asig.objeto,
-                    vivos_lista=vivos_nombres,
-                    historial_bajas=[]
-                )
-                email_service.send_email(
-                    to_email=asesino_p.user.email,
-                    subject="🔪 [INICIO DE PARTIDA] Tu objetivo ha sido asignado - Estás Muerto",
-                    body_html=html_msg
-                )
-                progress.progress((idx + 1) / len(asignaciones))
-            
-            st.balloons()
-            st.success("📩 Correos secretos de inicio enviados.")
-            st.rerun()
-        except Exception as e:
-            st.error(f"Error al iniciar partida: {e}")
+                st.balloons()
+                st.success("📩 Correos secretos de inicio enviados.")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Error al iniciar partida: {e}")
+    else:
+        st.warning(f"🔒 El inicio de la partida requiere permisos de Host. Contacta a **{host_nombre}** para iniciar la partida.")
 
 # =========================================================
 # PESTAÑA 4: ROTACIÓN / CAMBIO DE ARMA
@@ -416,34 +436,37 @@ with tab_rotacion:
     st.subheader("🔄 Rotación Periódica General")
     st.write("Reorganiza los objetivos y armas entre todos los supervivientes de esta sala.")
 
-    if st.button("🔀 Ejecutar Rotación de Sala", type="primary", use_container_width=True):
-        try:
-            asignaciones = game_logic.generar_ciclo_cerrado(db, room_id)
-            st.success("✅ ¡Rotación realizada correctamente!")
+    if is_host:
+        if st.button("🔀 Ejecutar Rotación de Sala", type="primary", use_container_width=True):
+            try:
+                asignaciones = game_logic.generar_ciclo_cerrado(db, room_id)
+                st.success("✅ ¡Rotación realizada correctamente!")
 
-            vivos_nombres = [p.user.nombre for p in db.query(Player).filter_by(room_id=room_id, estado="vivo").all()]
-            progress = st.progress(0)
-            for idx, asig in enumerate(asignaciones):
-                asesino_p = db.query(Player).get(asig.asesino_id)
-                victima_p = db.query(Player).get(asig.victima_id)
+                vivos_nombres = [p.user.nombre for p in db.query(Player).filter_by(room_id=room_id, estado="vivo").all()]
+                progress = st.progress(0)
+                for idx, asig in enumerate(asignaciones):
+                    asesino_p = db.query(Player).get(asig.asesino_id)
+                    victima_p = db.query(Player).get(asig.victima_id)
 
-                html_msg = email_service.build_assignment_email_html(
-                    nombre_asesino=asesino_p.user.nombre,
-                    nombre_victima=victima_p.user.nombre,
-                    objeto=asig.objeto,
-                    vivos_lista=vivos_nombres,
-                    historial_bajas=[]
-                )
-                email_service.send_email(
-                    to_email=asesino_p.user.email,
-                    subject="🔄 [ROTACIÓN DE OBJETIVOS] Tu nueva víctima y arma - Estás Muerto",
-                    body_html=html_msg
-                )
-                progress.progress((idx + 1) / len(asignaciones))
+                    html_msg = email_service.build_assignment_email_html(
+                        nombre_asesino=asesino_p.user.nombre,
+                        nombre_victima=victima_p.user.nombre,
+                        objeto=asig.objeto,
+                        vivos_lista=vivos_nombres,
+                        historial_bajas=[]
+                    )
+                    email_service.send_email(
+                        to_email=asesino_p.user.email,
+                        subject="🔄 [ROTACIÓN DE OBJETIVOS] Tu nueva víctima y arma - Estás Muerto",
+                        body_html=html_msg
+                    )
+                    progress.progress((idx + 1) / len(asignaciones))
 
-            st.success("📩 Notificaciones de rotación enviadas a todos los supervivientes.")
-        except Exception as e:
-            st.error(f"Error al rotar sala: {e}")
+                st.success("📩 Notificaciones de rotación enviadas a todos los supervivientes.")
+            except Exception as e:
+                st.error(f"Error al rotar sala: {e}")
+    else:
+        st.warning(f"🔒 La rotación periódica de la sala solo puede ser ejecutada por el Host (**{host_nombre}**).")
 
 # Cerrar sesión DB al final de la ejecución
 db.close()
