@@ -1,7 +1,7 @@
 import random
 from datetime import datetime
 from sqlalchemy.orm import Session
-from models import Room, Player, Assignment, GameObject, HistoryLog
+from models import Room, Player, Assignment, GameObject, HistoryLog, KillClaim
 
 
 def obtener_objetos_disponibles(db: Session, room_id: int) -> list[str]:
@@ -164,3 +164,52 @@ def ejecutar_cambio_arma(db: Session, room_id: int, player_id: int) -> tuple[str
 
     db.commit()
     return nuevo_objeto, player.cambios_restantes
+
+
+def solicitar_baja(db: Session, room_id: int, asesino_player_id: int) -> KillClaim:
+    """Crea una solicitud de baja pendiente para que la víctima la confirme."""
+    asig = db.query(Assignment).filter_by(room_id=room_id, asesino_id=asesino_player_id).first()
+    if not asig:
+        raise ValueError("No tienes una asignación activa en esta sala.")
+
+    # Verificar si ya existe una solicitud pendiente
+    existente = db.query(KillClaim).filter_by(
+        room_id=room_id,
+        asesino_id=asesino_player_id,
+        victima_id=asig.victima_id,
+        estado="pendiente"
+    ).first()
+    if existente:
+        return existente
+
+    claim = KillClaim(
+        room_id=room_id,
+        asesino_id=asesino_player_id,
+        victima_id=asig.victima_id,
+        estado="pendiente"
+    )
+    db.add(claim)
+    db.commit()
+    db.refresh(claim)
+    return claim
+
+
+def confirmar_baja_claim(db: Session, claim_id: int) -> dict:
+    """Procesa la baja tras la confirmación explícita de la víctima."""
+    claim = db.query(KillClaim).get(claim_id)
+    if not claim or claim.estado != "pendiente":
+        raise ValueError("Solicitud no válida o ya procesada.")
+
+    res = registrar_baja(db, claim.room_id, claim.asesino_id)
+    claim.estado = "confirmado"
+    db.commit()
+    return res
+
+
+def rechazar_baja_claim(db: Session, claim_id: int):
+    """Rechaza la solicitud de baja pendiente."""
+    claim = db.query(KillClaim).get(claim_id)
+    if claim:
+        claim.estado = "rechazado"
+        db.commit()
+

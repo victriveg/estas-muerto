@@ -111,3 +111,20 @@ class HistoryLog(Base):
     room = relationship("Room", back_populates="history_logs")
     asesino = relationship("Player", foreign_keys=[asesino_id])
     victima = relationship("Player", foreign_keys=[victima_id])
+
+
+class KillClaim(Base):
+    """Modelo para almacenar las solicitudes pendientes de confirmación de asesinato entre jugadores."""
+    __tablename__ = "kill_claims"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    room_id = Column(Integer, ForeignKey("rooms.id", ondelete="CASCADE"), nullable=False)
+    asesino_id = Column(Integer, ForeignKey("players.id", ondelete="CASCADE"), nullable=False)
+    victima_id = Column(Integer, ForeignKey("players.id", ondelete="CASCADE"), nullable=False)
+    estado = Column(String(20), default="pendiente", nullable=False)  # 'pendiente', 'confirmado', 'rechazado'
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    room = relationship("Room")
+    asesino = relationship("Player", foreign_keys=[asesino_id])
+    victima = relationship("Player", foreign_keys=[victima_id])
+

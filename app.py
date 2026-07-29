@@ -3,7 +3,7 @@ import pandas as pd
 from datetime import datetime
 import email_service
 from database import SessionLocal, init_db
-from models import User, Room, Player, Assignment, GameObject, HistoryLog
+from models import User, Room, Player, Assignment, GameObject, HistoryLog, KillClaim
 import game_logic
 import auth
 
@@ -93,7 +93,6 @@ st.sidebar.markdown("---")
 # ---------------------------------------------------------
 salas = db.query(Room).all()
 if not salas:
-    # Crear sala por defecto si la base de datos es nueva
     def_room = Room(codigo="SALA01", nombre="Sala Principal", estado="espera", host_id=current_user.id)
     db.add(def_room)
     db.commit()
@@ -107,7 +106,6 @@ sala_sel_key = st.sidebar.selectbox("Seleccionar Sala Activa:", list(opciones_sa
 room_id = opciones_salas[sala_sel_key]
 room_actual = db.query(Room).get(room_id)
 
-# Si la sala no tiene host_id, asignar al usuario actual
 if not room_actual.host_id:
     room_actual.host_id = current_user.id
     db.commit()
@@ -115,10 +113,7 @@ if not room_actual.host_id:
 host_nombre = room_actual.host.nombre if room_actual.host else "Sin Host"
 st.sidebar.info(f"**Sala Activa:** {room_actual.nombre}\n\n👑 **Host:** {host_nombre}\n\n📌 **Estado:** `{room_actual.estado}`")
 
-# Verificar si el usuario actual es el Host de la sala activa
 is_host = (current_user.id == room_actual.host_id)
-
-# Auto-inscribir al usuario activo en la sala si aún no lo está
 player_active = db.query(Player).filter_by(user_id=current_user.id, room_id=room_id).first()
 
 # ---------------------------------------------------------
@@ -134,7 +129,6 @@ tab_estado, tab_gestion, tab_setup, tab_rotacion = st.tabs([
 with tab_estado:
     st.subheader(f"🟢 Supervivientes - {room_actual.nombre}")
     
-    # Consultar jugadores vivos de la sala activa
     vivos_players = db.query(Player).filter_by(room_id=room_id, estado="vivo").all()
     
     if vivos_players:
@@ -186,57 +180,87 @@ with tab_estado:
         st.caption("Aún no se ha registrado ninguna baja en esta sala.")
 
 # =========================================================
-# PESTAÑA 2: REGISTRAR BAJA
+# PESTAÑA 2: REGISTRAR / CONFIRMAR BAJA (SISTEMA DUAL)
 # =========================================================
 with tab_gestion:
-    st.subheader("☠️ Registrar un 'Asesinato'")
+    st.subheader("☠️ Registro y Confirmación de Asesinatos")
 
-    vivos_players = db.query(Player).filter_by(room_id=room_id, estado="vivo").all()
+    # 1. NOTIFICACIÓN ANÓNIMA PARA LA VÍCTIMA (Si existe solicitud pendiente sobre el usuario activo)
+    if player_active:
+        claims_pendientes = db.query(KillClaim).filter_by(
+            room_id=room_id, victima_id=player_active.id, estado="pendiente"
+        ).all()
 
-    if len(vivos_players) < 2:
-        st.warning("⚠️ Quedan menos de 2 jugadores vivos o la partida no ha comenzado.")
-    else:
-        dict_vivos = {f"{p.user.nombre} ({p.user.email})": p.id for p in vivos_players}
-        asesino_sel_key = st.selectbox("¿Quién ha ejecutado la baja?", list(dict_vivos.keys()))
-        asesino_player_id = dict_vivos[asesino_sel_key]
+        if claims_pendientes:
+            for claim in claims_pendientes:
+                st.error("⚠️ **¡SOLICITUD DE CONFIRMACIÓN DE MUERTE!**")
+                st.markdown("""
+                Alguien ha marcado haberte eliminado cumpliendo el objetivo de su misión. 
+                *(Por privacidad del juego, no se muestra la identidad del asesino)*.
+                """)
+                c1, c2 = st.columns(2)
+                if c1.button("☠️ Confirmar mi Muerte", type="primary", key=f"btn_confirm_death_{claim.id}", use_container_width=True):
+                    res = game_logic.confirmar_baja_claim(db, claim.id)
+                    st.success("Has sido marcado/a como eliminado/a.")
+                    if res.get("partida_finalizada"):
+                        st.balloons()
+                        st.success(f"🏆 ¡PARTIDA FINALIZADA! Ganador/a: **{res['ganador'].user.nombre}**")
+                    st.rerun()
+                if c2.button("❌ Rechazar (Fue un error)", key=f"btn_reject_death_{claim.id}", use_container_width=True):
+                    game_logic.rechazar_baja_claim(db, claim.id)
+                    st.info("Solicitud rechazada.")
+                    st.rerun()
+            st.markdown("---")
 
-        # Buscar asignación del asesino
-        asig_actual = db.query(Assignment).filter_by(room_id=room_id, asesino_id=asesino_player_id).first()
+    # 2. OPCIÓN JUGADOR: MARCAR ASESINATO A SU VÍCTIMA
+    if player_active and player_active.estado == "vivo":
+        asig_mi = db.query(Assignment).filter_by(room_id=room_id, asesino_id=player_active.id).first()
+        if asig_mi:
+            victima_p = db.query(Player).get(asig_mi.victima_id)
+            st.subheader("🎯 Tu Misión Actual")
+            st.info(f"🎯 **Tu Víctima:** {victima_p.user.nombre}\n\n🛋️ **Tu Arma:** {asig_mi.objeto}")
 
-        if asig_actual:
-            victima_player = db.query(Player).get(asig_actual.victima_id)
-            st.info(f"🎯 Víctima actual asignada: **{victima_player.user.nombre}** | Arma: **{asig_actual.objeto}**")
+            claim_existente = db.query(KillClaim).filter_by(
+                room_id=room_id, asesino_id=player_active.id, victima_id=victima_p.id, estado="pendiente"
+            ).first()
 
-            if st.button("🔴 Confirmar Asesinato", type="primary", use_container_width=True):
-                res = game_logic.registrar_baja(db, room_id, asesino_player_id)
-                st.success(f"🎉 ¡Baja registrada! **{victima_player.user.nombre}** ha sido eliminado/a.")
+            if claim_existente:
+                st.warning("⏳ **Solicitud enviada.** Esperando que tu víctima confirme la baja en su pantalla.")
+            else:
+                if st.button("🔴 He eliminado a mi víctima", type="primary", use_container_width=True, key="btn_claim_kill"):
+                    game_logic.solicitar_baja(db, room_id, player_active.id)
+                    st.success("📩 Solicitud enviada. Le ha aparecido una notificación a tu víctima para que la confirme.")
+                    st.rerun()
+            st.markdown("---")
 
-                if res["partida_finalizada"]:
-                    ganador_p = res["ganador"]
-                    st.balloons()
-                    st.success(f"🏆 ¡PARTIDA FINALIZADA! El ganador/a absoluto es **{ganador_p.user.nombre}** 🎉")
-                else:
-                    # Notificar al asesino por correo
-                    sig_victima_p = db.query(Player).get(res["siguiente_victima_id"])
-                    email_dest = db.query(Player).get(asesino_player_id).user.email
-                    vivos_nombres = [p.user.nombre for p in db.query(Player).filter_by(room_id=room_id, estado="vivo").all()]
-                    
-                    html_msg = email_service.build_assignment_email_html(
-                        nombre_asesino=db.query(Player).get(asesino_player_id).user.nombre,
-                        nombre_victima=sig_victima_p.user.nombre,
-                        objeto=res["siguiente_objeto"],
-                        vivos_lista=vivos_nombres,
-                        historial_bajas=[]
-                    )
-                    email_service.send_email(
-                        to_email=email_dest,
-                        subject="🔪 ¡NUEVA VÍCTIMA ASIGNADA! - Estás Muerto",
-                        body_html=html_msg
-                    )
-                    st.info(f"📩 Nueva víctima asignada y notificada a **{email_dest}**.")
-                st.rerun()
+    # 3. OPCIÓN ADMINISTRADOR (HOST): REGISTRO DIRECTO DE ASESINATO
+    if is_host:
+        st.subheader("👑 Registro Directo de Asesinato (Solo Administrador / Host)")
+        st.caption("Como Host de la sala, puedes confirmar directamente la baja de cualquier jugador sin esperar la confirmación de la víctima.")
+
+        vivos_players = db.query(Player).filter_by(room_id=room_id, estado="vivo").all()
+
+        if len(vivos_players) < 2:
+            st.warning("⚠️ Quedan menos de 2 jugadores vivos o la partida no ha comenzado.")
         else:
-            st.error("No se encontró una asignación activa para este jugador.")
+            dict_vivos = {f"{p.user.nombre} ({p.user.email})": p.id for p in vivos_players}
+            asesino_sel_key = st.selectbox("Seleccionar Asesino que realizó la baja:", list(dict_vivos.keys()), key="host_sel_asesino")
+            asesino_player_id = dict_vivos[asesino_sel_key]
+
+            asig_host = db.query(Assignment).filter_by(room_id=room_id, asesino_id=asesino_player_id).first()
+
+            if asig_host:
+                victima_host = db.query(Player).get(asig_host.victima_id)
+                st.write(f"Víctima actual: **{victima_host.user.nombre}** | Arma: **{asig_host.objeto}**")
+
+                if st.button("⚡ Confirmar Asesinato Directo (Host)", type="primary", use_container_width=True, key="btn_host_direct_kill"):
+                    res = game_logic.registrar_baja(db, room_id, asesino_player_id)
+                    st.success(f"🎉 ¡Baja registrada! **{victima_host.user.nombre}** ha sido eliminado/a.")
+
+                    if res["partida_finalizada"]:
+                        st.balloons()
+                        st.success(f"🏆 ¡PARTIDA FINALIZADA! Ganador/a: **{res['ganador'].user.nombre}**")
+                    st.rerun()
 
 # =========================================================
 # PESTAÑA 3: CONFIGURACIÓN / SETUP
@@ -363,7 +387,6 @@ with tab_setup:
                 asignaciones = game_logic.generar_ciclo_cerrado(db, room_id)
                 st.success("✅ ¡Partida iniciada! Se han generado los ciclos de asignación.")
 
-                # Enviar correos iniciales
                 vivos_nombres = [p.user.nombre for p in db.query(Player).filter_by(room_id=room_id, estado="vivo").all()]
                 progress = st.progress(0)
                 for idx, asig in enumerate(asignaciones):
