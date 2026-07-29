@@ -1,0 +1,54 @@
+import hashlib
+import secrets
+from sqlalchemy.orm import Session
+from models import User
+
+
+def hash_password(password: str) -> str:
+    """Genera un hash seguro usando PBKDF2-HMAC-SHA256 con un salt de 16 bytes."""
+    salt = secrets.token_bytes(16)
+    key = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt, 100000)
+    return f"{salt.hex()}${key.hex()}"
+
+
+def verify_password(password: str, password_hash: str) -> bool:
+    """Verifica si una contraseña en texto plano coincide con el hash guardado."""
+    if not password_hash or "$" not in password_hash:
+        return False
+    try:
+        salt_hex, key_hex = password_hash.split("$", 1)
+        salt = bytes.fromhex(salt_hex)
+        key = bytes.fromhex(key_hex)
+        new_key = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt, 100000)
+        return secrets.compare_digest(key, new_key)
+    except Exception:
+        return False
+
+
+def register_user(db: Session, nombre: str, email: str, password: str) -> User:
+    """Registra un nuevo usuario en la base de datos con contraseña hasheada."""
+    email_clean = email.strip().lower()
+    if db.query(User).filter_by(email=email_clean).first():
+        raise ValueError(f"Ya existe un usuario registrado con el correo '{email_clean}'.")
+
+    pwd_hash = hash_password(password)
+    user = User(
+        nombre=nombre.strip(),
+        email=email_clean,
+        password_hash=pwd_hash
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def authenticate_user(db: Session, email: str, password: str) -> User | None:
+    """Autentica a un usuario verificando su correo y contraseña."""
+    email_clean = email.strip().lower()
+    user = db.query(User).filter_by(email=email_clean).first()
+    if not user:
+        return None
+    if verify_password(password, user.password_hash):
+        return user
+    return None

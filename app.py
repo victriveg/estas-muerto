@@ -5,6 +5,7 @@ import email_service
 from database import SessionLocal, init_db
 from models import User, Room, Player, Assignment, GameObject, HistoryLog
 import game_logic
+import auth
 
 # Configuración de página adaptada a móviles
 st.set_page_config(
@@ -21,6 +22,71 @@ db = SessionLocal()
 
 st.title("🔪 Estás Muerto")
 st.caption("Panel de control relacional multisala (SQLAlchemy)")
+
+# ---------------------------------------------------------
+# AUTENTICACIÓN Y GESTIÓN DE SESIÓN DE USUARIO
+# ---------------------------------------------------------
+current_user_id = st.session_state.get("user_id")
+current_user = db.query(User).get(current_user_id) if current_user_id else None
+
+if not current_user:
+    st.info("👋 Por favor inicia sesión o regístrate para acceder al panel del juego.")
+
+    tab_login, tab_register = st.tabs(["🔑 Iniciar Sesión", "📝 Registrarse"])
+
+    with tab_login:
+        st.subheader("🔑 Iniciar Sesión")
+        email_in = st.text_input("Correo Electrónico", key="login_email")
+        pass_in = st.text_input("Contraseña", type="password", key="login_pass")
+
+        if st.button("🚀 Entrar", type="primary", use_container_width=True, key="btn_login"):
+            if email_in and pass_in:
+                u = auth.authenticate_user(db, email_in, pass_in)
+                if u:
+                    st.session_state["user_id"] = u.id
+                    st.success(f"¡Bienvenido/a de nuevo, **{u.nombre}**!")
+                    st.rerun()
+                else:
+                    st.error("❌ Correo electrónico o contraseña incorrectos.")
+            else:
+                st.warning("Rellena todos los campos.")
+
+    with tab_register:
+        st.subheader("📝 Crear Cuenta")
+        name_reg = st.text_input("Tu Nombre / Apodo", key="reg_name")
+        email_reg = st.text_input("Correo Electrónico", key="reg_email")
+        pass_reg = st.text_input("Contraseña", type="password", key="reg_pass")
+        pass_reg_conf = st.text_input("Confirmar Contraseña", type="password", key="reg_pass_conf")
+
+        if st.button("➕ Crear Cuenta", type="primary", use_container_width=True, key="btn_reg"):
+            if name_reg and email_reg and pass_reg:
+                if pass_reg != pass_reg_conf:
+                    st.error("❌ Las contraseñas no coinciden.")
+                elif len(pass_reg) < 4:
+                    st.error("❌ La contraseña debe tener al menos 4 caracteres.")
+                else:
+                    try:
+                        u = auth.register_user(db, name_reg, email_reg, pass_reg)
+                        st.session_state["user_id"] = u.id
+                        st.success(f"¡Cuenta creada con éxito! Bienvenido/a, **{u.nombre}**.")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error al registrar: {e}")
+            else:
+                st.warning("Por favor completa todos los campos.")
+
+    db.close()
+    st.stop()  # Detener ejecución si no hay usuario autenticado
+
+# ---------------------------------------------------------
+# USUARIO AUTENTICADO
+# ---------------------------------------------------------
+st.sidebar.markdown(f"👤 **Usuario:** `{current_user.nombre}`\n\n📧 `{current_user.email}`")
+if st.sidebar.button("🚪 Cerrar Sesión", use_container_width=True):
+    st.session_state.pop("user_id", None)
+    st.rerun()
+
+st.sidebar.markdown("---")
 
 # ---------------------------------------------------------
 # GESTIÓN Y SELECCIÓN DE SALA ACTIVA
@@ -42,6 +108,9 @@ room_id = opciones_salas[sala_sel_key]
 room_actual = db.query(Room).get(room_id)
 
 st.sidebar.info(f"**Sala Activa:** {room_actual.nombre}\n\n**Estado:** `{room_actual.estado}`")
+
+# Auto-inscribir al usuario activo en la sala si aún no lo está
+player_active = db.query(Player).filter_by(user_id=current_user.id, room_id=room_id).first()
 
 # ---------------------------------------------------------
 # INTERFAZ PRINCIPAL EN PESTAÑAS
@@ -166,6 +235,16 @@ with tab_gestion:
 with tab_setup:
     st.subheader("⚙️ Configuración de la Partida y Sala")
 
+    # Botón directo para que el usuario autenticado se una a esta sala
+    if not player_active:
+        st.info(f"💡 No estás inscrito en la sala **{room_actual.nombre}**.")
+        if st.button("🎮 Unirme a esta Sala", type="primary", use_container_width=True):
+            p_new = Player(user_id=current_user.id, room_id=room_id, estado="vivo", bajas=0, cambios_restantes=2)
+            db.add(p_new)
+            db.commit()
+            st.success(f"¡Te has unido a {room_actual.nombre}!")
+            st.rerun()
+
     # A. Crear Nueva Sala
     with st.expander("🏠 Crear Nueva Sala", expanded=False):
         c_n1, c_n2 = st.columns(2)
@@ -180,18 +259,23 @@ with tab_setup:
                     n_room = Room(codigo=c_clean, nombre=n_nombre.strip(), estado="espera")
                     db.add(n_room)
                     db.commit()
-                    st.success(f"Sala '{n_nombre}' creada correctamente.")
+                    db.refresh(n_room)
+                    # Unir automáticamente al creador a la sala
+                    p_creator = Player(user_id=current_user.id, room_id=n_room.id, estado="vivo", bajas=0, cambios_restantes=2)
+                    db.add(p_creator)
+                    db.commit()
+                    st.success(f"Sala '{n_nombre}' creada e inscripciones abiertas.")
                     st.rerun()
             else:
                 st.warning("Por favor completa el nombre y el código de la sala.")
 
-    # B. Agregar / Unir Jugador a la Sala Activa
-    with st.expander("👤 Añadir Jugadores a la Sala", expanded=True):
+    # B. Agregar / Unir Otro Jugador a la Sala Activa
+    with st.expander("👤 Añadir Otro Jugador a esta Sala", expanded=True):
         col1, col2 = st.columns(2)
         nuevo_nombre = col1.text_input("Nombre del Jugador")
         nuevo_email = col2.text_input("Correo Electrónico")
 
-        if st.button("➕ Registrar e Inscribir en Sala", use_container_width=True):
+        if st.button("➕ Registrar e Inscribir", use_container_width=True):
             if nuevo_nombre and nuevo_email:
                 name_clean = nuevo_nombre.strip()
                 email_clean = nuevo_email.strip().lower()
@@ -199,7 +283,7 @@ with tab_setup:
                 # Buscar o crear usuario
                 user = db.query(User).filter_by(email=email_clean).first()
                 if not user:
-                    user = User(nombre=name_clean, email=email_clean)
+                    user = User(nombre=name_clean, email=email_clean, password_hash=auth.hash_password("1234"))
                     db.add(user)
                     db.commit()
                     db.refresh(user)
@@ -361,5 +445,5 @@ with tab_rotacion:
         except Exception as e:
             st.error(f"Error al rotar sala: {e}")
 
-# Cerrar sesión DB al final de la ejecucion
+# Cerrar sesión DB al final de la ejecución
 db.close()
