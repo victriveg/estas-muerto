@@ -28,6 +28,13 @@ components.html("""
                 window.parent.document
             ];
             const selectors = [
+                '[data-testid="appCreatorAvatar"]',
+                '[class*="_profilePreview_"]',
+                '[class*="_profileImage_"]',
+                '[class*="_viewerBadge_"]',
+                '[class*="_container_gzau3_"]',
+                'a[href*="streamlit.io/cloud"]',
+                'a[href*="share.streamlit.io/user"]',
                 '[data-testid="stToolbarActionButton"]',
                 '[class*="stToolbarActionButton"]',
                 'button[aria-label*="Fork"]',
@@ -62,7 +69,7 @@ components.html("""
         } catch(e) {}
     }
     removeCloudButtons();
-    setInterval(removeCloudButtons, 200);
+    setInterval(removeCloudButtons, 150);
 </script>
 """, height=0, width=0)
 
@@ -72,7 +79,14 @@ components.html("""
 # ---------------------------------------------------------
 st.markdown("""
 <style>
-/* 1. Ocultar todos los stToolbarActionButton (emoticono Git y botón de Fork) */
+/* 1. Ocultar avatar de creador, badge Hosted with Streamlit y botones de toolbar */
+[data-testid="appCreatorAvatar"],
+[class*="_profilePreview_"],
+[class*="_profileImage_"],
+[class*="_viewerBadge_"],
+[class*="_container_gzau3_"],
+a[href*="streamlit.io/cloud"],
+a[href*="share.streamlit.io/user"],
 [data-testid="stToolbarActionButton"],
 [class*="stToolbarActionButton"],
 button[aria-label*="Fork"],
