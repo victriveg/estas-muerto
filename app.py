@@ -348,22 +348,7 @@ st.sidebar.info(f"**Sala Activa:** {room_actual.nombre}\n\n🔑 **PIN:** `{room_
 is_host = (current_user.id == room_actual.host_id)
 player_active = db.query(Player).filter_by(user_id=current_user.id, room_id=room_id).first()
 
-# ---------------------------------------------------------
-# TARJETA DESTACADA: MI MISIÓN SECRETA
-# ---------------------------------------------------------
-if player_active and player_active.estado == "vivo" and room_actual.estado == "en_juego":
-    asig_secret = db.query(Assignment).filter_by(room_id=room_id, asesino_id=player_active.id).first()
-    if asig_secret:
-        victima_secret = db.query(Player).get(asig_secret.victima_id)
-        with st.expander("🕵️ **MI MISIÓN SECRETA** (Pulsa para ver/ocultar tu objetivo)", expanded=False):
-            st.markdown(f"""
-            <div style="background: #2a2a2a; padding: 15px; border-radius: 10px; border-left: 5px solid #e74c3c;">
-                <p style="margin: 5px 0; font-size: 16px;">🎯 <b>Tu Víctima:</b> <span style="color: #ff6b6b; font-size: 22px; font-weight: bold;">{victima_secret.user.nombre}</span></p>
-                <p style="margin: 5px 0; font-size: 16px;">🛋️ <b>Tu Arma / Objeto:</b> <span style="color: #fca311; font-size: 22px; font-weight: bold;">{asig_secret.objeto}</span></p>
-                <p style="margin: 5px 0; font-size: 14px; color: #4cc9f0;">🔄 <b>Cambios restantes de arma:</b> {player_active.cambios_restantes}</p>
-            </div>
-            """, unsafe_allow_html=True)
-            st.caption("🔒 Mantén esta pantalla oculta de miradas curiosas.")
+
 
 # ---------------------------------------------------------
 # INTERFAZ PRINCIPAL EN PESTAÑAS
@@ -532,7 +517,15 @@ with tab_gestion:
         if asig_mi:
             victima_p = db.query(Player).get(asig_mi.victima_id)
             st.subheader("🎯 Tu Misión Actual")
-            st.info(f"🎯 **Tu Víctima:** {victima_p.user.nombre}\n\n🛋️ **Tu Arma:** {asig_mi.objeto}")
+            with st.expander("🕵️ **MI MISIÓN SECRETA** (Pulsa para ver/ocultar tu objetivo)", expanded=False):
+                st.markdown(f"""
+                <div style="background: #2a2a2a; padding: 15px; border-radius: 10px; border-left: 5px solid #e74c3c;">
+                    <p style="margin: 5px 0; font-size: 16px;">🎯 <b>Tu Víctima:</b> <span style="color: #ff6b6b; font-size: 22px; font-weight: bold;">{victima_p.user.nombre}</span></p>
+                    <p style="margin: 5px 0; font-size: 16px;">🛋️ <b>Tu Arma / Objeto:</b> <span style="color: #fca311; font-size: 22px; font-weight: bold;">{asig_mi.objeto}</span></p>
+                    <p style="margin: 5px 0; font-size: 14px; color: #4cc9f0;">🔄 <b>Cambios restantes de arma:</b> {player_active.cambios_restantes}</p>
+                </div>
+                """, unsafe_allow_html=True)
+                st.caption("🔒 Mantén esta pantalla oculta de miradas curiosas.")
 
             claim_existente = db.query(KillClaim).filter_by(
                 room_id=room_id, asesino_id=player_active.id, victima_id=victima_p.id, estado="pendiente"
