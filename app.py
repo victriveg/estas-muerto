@@ -16,23 +16,47 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# AJUSTES DE ESTILO CSS: OCULTAR GITHUB/FORK Y FOOTER INFERIOR
-# (Se mantiene visible el menú nativo de 3 puntos para el cambio de tema System/Dark/Light)
+# AJUSTES DE ESTILO CSS: OCULTAR GITHUB, FORK, BADGES DE STREAMLIT CLOUD Y FOOTER
+# (Mantiene visible únicamente el menú nativo de 3 puntos #MainMenu para el cambio de tema)
 # ---------------------------------------------------------
 st.markdown("""
 <style>
-/* Ocultar botón de GitHub y Fork en la parte superior derecha */
-header a {display: none !important;}
-[data-testid="stToolbar"] a {display: none !important;}
-[data-testid="stDecoration"] {display: none !important;}
-[data-testid="stStatusWidget"] {display: none !important;}
+/* 1. Ocultar todos los enlaces y botones de GitHub, Fork, Streamlit Cloud y perfil */
+header a,
+[data-testid="stHeader"] a,
+[data-testid="stToolbar"] a,
+.viewerBadge_container__1QSob,
+.styles_viewerBadge__1yB5_,
+[class*="viewerBadge"],
+[class*="stAppHeader"] a,
+[data-testid="stDecoration"],
+[data-testid="stStatusWidget"],
+a[href*="github.com"],
+a[href*="streamlit.io"],
+a[href*="share.streamlit.io"] {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
 
-/* Ocultar marcas y botones del pie de página inferior */
-footer {display: none !important; visibility: hidden !important;}
-[data-testid="stFooter"] {display: none !important;}
+/* 2. Ocultar todo el pie de página inferior (footer) */
+footer,
+[data-testid="stFooter"] {
+    display: none !important;
+    visibility: hidden !important;
+}
 
-/* Mantener visible el menú nativo de 3 puntos */
-#MainMenu {visibility: visible !important;}
+/* 3. Asegurar que SOLO el menú nativo de 3 puntos permanezca visible y funcional */
+#MainMenu,
+[data-testid="stMainMenu"],
+button[aria-label="Main menu"],
+button[aria-label="Menú principal"] {
+    display: inline-flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
