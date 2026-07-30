@@ -582,6 +582,7 @@ with tab_gestion:
 
     # 3. OPCIÓN ADMINISTRADOR (HOST): REGISTRO DIRECTO DE ASESINATO (CON POPUP)
     if is_host:
+        st.markdown("---")
         st.subheader("👑 Registro Directo de Asesinato (Solo Administrador / Host)")
         st.caption("Como Host de la sala, puedes confirmar directamente la baja de cualquier jugador sin esperar la confirmación de la víctima.")
 
