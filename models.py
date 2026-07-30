@@ -9,6 +9,7 @@ from database import Base
 class User(Base):
     """Modelo para representar a los usuarios registrados en el sistema."""
     __tablename__ = "users"
+    __table_args__ = {'extend_existing': True}
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     nombre = Column(String(100), nullable=False)
@@ -25,6 +26,7 @@ class User(Base):
 class Room(Base):
     """Modelo para representar las salas o partidas de juego independientes."""
     __tablename__ = "rooms"
+    __table_args__ = {'extend_existing': True}
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     codigo = Column(String(10), unique=True, index=True, nullable=False)  # Código único de sala (ej. 'GAME12')
@@ -59,6 +61,7 @@ class Player(Base):
     # Restricción: Un usuario solo puede registrarse una vez en una misma sala
     __table_args__ = (
         UniqueConstraint("user_id", "room_id", name="uq_user_room"),
+        {'extend_existing': True}
     )
 
     # Relaciones
@@ -83,6 +86,7 @@ class Assignment(Base):
     # Restricción: Cada jugador (asesino) tiene una única asignación activa por sala
     __table_args__ = (
         UniqueConstraint("room_id", "asesino_id", name="uq_room_asesino"),
+        {'extend_existing': True}
     )
 
     # Relaciones
@@ -94,6 +98,7 @@ class Assignment(Base):
 class GameObject(Base):
     """Modelo para almacenar el catálogo de objetos/armas (globales o específicos por sala)."""
     __tablename__ = "objects"
+    __table_args__ = {'extend_existing': True}
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     room_id = Column(Integer, ForeignKey("rooms.id", ondelete="CASCADE"), nullable=True)  # Null = Objeto global
@@ -105,6 +110,7 @@ class GameObject(Base):
 class HistoryLog(Base):
     """Modelo para almacenar el historial de muertes por sala."""
     __tablename__ = "history_logs"
+    __table_args__ = {'extend_existing': True}
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     room_id = Column(Integer, ForeignKey("rooms.id", ondelete="CASCADE"), nullable=False)
@@ -121,6 +127,7 @@ class HistoryLog(Base):
 class KillClaim(Base):
     """Modelo para almacenar las solicitudes pendientes de confirmación de asesinato entre jugadores."""
     __tablename__ = "kill_claims"
+    __table_args__ = {'extend_existing': True}
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     room_id = Column(Integer, ForeignKey("rooms.id", ondelete="CASCADE"), nullable=False)
@@ -132,4 +139,3 @@ class KillClaim(Base):
     room = relationship("Room")
     asesino = relationship("Player", foreign_keys=[asesino_id])
     victima = relationship("Player", foreign_keys=[victima_id])
-
