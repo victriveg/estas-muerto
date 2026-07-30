@@ -72,8 +72,21 @@ def get_smtp_credentials():
 def send_email(to_email, subject, body_html):
     """
     Envía un correo electrónico usando las credenciales SMTP configuradas.
-    Si no hay credenciales configuradas, muestra una advertencia de simulación sin romper la app.
+    Si el usuario tiene desmarcada la opción de recibir correos, se omite el envío.
     """
+    try:
+        from database import SessionLocal
+        from models import User
+        tmp_db = SessionLocal()
+        user_obj = tmp_db.query(User).filter_by(email=to_email).first()
+        recibir = getattr(user_obj, "recibir_correos", True) if user_obj else True
+        tmp_db.close()
+        if recibir is False:
+            # El usuario ha desactivado la recepción de correos de la partida
+            return True
+    except Exception:
+        pass
+
     sender_email, sender_password, smtp_server, smtp_port = get_smtp_credentials()
 
     if not sender_email or not sender_password or sender_email == "tu_cuenta@gmail.com":

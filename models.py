@@ -17,6 +17,7 @@ class User(Base):
     password_hash = Column(String(255), nullable=True)  # Hash para futuro inicio de sesión
     reset_token = Column(String(255), nullable=True)
     reset_token_expires = Column(DateTime, nullable=True)
+    recibir_correos = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # Relación con las participaciones del usuario en salas

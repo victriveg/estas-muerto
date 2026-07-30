@@ -1015,6 +1015,24 @@ with tab_perfil:
     m3.metric("🔪 Kills Totales", stats["total_kills"])
 
     st.markdown("---")
+    st.subheader("⚙️ Configuración de Notificaciones")
+    val_recibir = getattr(current_user, "recibir_correos", True)
+    if val_recibir is None:
+        val_recibir = True
+
+    opt_recibir = st.checkbox(
+        "📬 Recibir correos electrónicos con información de la partida",
+        value=bool(val_recibir),
+        key="chk_recibir_correos"
+    )
+
+    if opt_recibir != val_recibir:
+        current_user.recibir_correos = opt_recibir
+        db.commit()
+        st.toast("✅ Preferencias de correo actualizadas con éxito.")
+        st.rerun()
+
+    st.markdown("---")
     st.subheader("🎖️ Insignias y Logros")
 
     cols = st.columns(2)
