@@ -15,6 +15,58 @@ st.set_page_config(
     layout="centered"
 )
 
+# ---------------------------------------------------------
+# OCULTAR HEADER DE STREAMLIT (FORK, GITHUB Y MENÚ 3 PUNTOS)
+# ---------------------------------------------------------
+st.markdown("""
+<style>
+#MainMenu {visibility: hidden;}
+header {visibility: hidden;}
+footer {visibility: hidden;}
+[data-testid="stHeader"] {display: none !important;}
+[data-testid="stToolbar"] {display: none !important;}
+[data-testid="stDecoration"] {display: none !important;}
+[data-testid="stStatusWidget"] {display: none !important;}
+</style>
+""", unsafe_allow_html=True)
+
+# ---------------------------------------------------------
+# BOTÓN ON/OFF PARA TEMA OSCURO / CLARO
+# ---------------------------------------------------------
+if "dark_mode" not in st.session_state:
+    st.session_state["dark_mode"] = True
+
+dark_mode_on = st.sidebar.toggle("🌙 Modo Oscuro", value=st.session_state["dark_mode"], key="theme_toggle_btn")
+st.session_state["dark_mode"] = dark_mode_on
+
+if dark_mode_on:
+    st.markdown("""
+    <style>
+        .stApp {
+            background-color: #0e1117 !important;
+            color: #ffffff !important;
+        }
+        [data-testid="stSidebar"] {
+            background-color: #161b22 !important;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+else:
+    st.markdown("""
+    <style>
+        .stApp {
+            background-color: #ffffff !important;
+            color: #111827 !important;
+        }
+        .stMarkdown, p, h1, h2, h3, h4, h5, h6, span, label {
+            color: #111827 !important;
+        }
+        [data-testid="stSidebar"] {
+            background-color: #f3f4f6 !important;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
 # Inicializar tablas en la base de datos (PostgreSQL / SQLite)
 init_db()
 
