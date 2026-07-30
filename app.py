@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import time
 from datetime import datetime
@@ -14,6 +15,51 @@ st.set_page_config(
     page_icon="🔪",
     layout="centered"
 )
+
+# ---------------------------------------------------------
+# SCRIPT DE OCULTACIÓN PARA STREAMLIT CLOUD (PARENT FRAME & DOM)
+# ---------------------------------------------------------
+components.html("""
+<script>
+    function removeCloudButtons() {
+        try {
+            const targets = [
+                window.document,
+                window.parent.document
+            ];
+            const selectors = [
+                'header a',
+                '[data-testid="stHeader"] a',
+                '[data-testid="stToolbar"] a',
+                '.viewerBadge_container__1QSob',
+                '[class*="viewerBadge"]',
+                '[class*="stAppHeader"] a',
+                '[data-testid="stDecoration"]',
+                '[data-testid="stStatusWidget"]',
+                'a[href*="github.com"]',
+                'a[href*="streamlit.io"]',
+                'a[href*="share.streamlit.io"]',
+                'footer',
+                '[data-testid="stFooter"]'
+            ];
+            targets.forEach(doc => {
+                if (!doc) return;
+                selectors.forEach(sel => {
+                    const els = doc.querySelectorAll(sel);
+                    els.forEach(el => {
+                        el.style.setProperty('display', 'none', 'important');
+                        el.style.setProperty('visibility', 'hidden', 'important');
+                        el.style.setProperty('opacity', '0', 'important');
+                        el.style.setProperty('pointer-events', 'none', 'important');
+                    });
+                });
+            });
+        } catch(e) {}
+    }
+    removeCloudButtons();
+    setInterval(removeCloudButtons, 300);
+</script>
+""", height=0, width=0)
 
 # ---------------------------------------------------------
 # AJUSTES DE ESTILO CSS: OCULTAR GITHUB, FORK, BADGES DE STREAMLIT CLOUD Y FOOTER
