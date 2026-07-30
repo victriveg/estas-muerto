@@ -718,44 +718,75 @@ if is_host and tab_setup:
 # =========================================================
 with tab_rotacion:
     st.subheader("🎲 Cambio Individual de Arma")
-    st.caption("Cambia el arma de un jugador específico si dispone de cambios en `cambios_restantes`.")
 
-    players_con_cambios = db.query(Player).filter(
-        (Player.room_id == room_id) & (Player.cambios_restantes > 0) & (Player.estado == "vivo")
-    ).all()
+    # 1. CAMBIO DE ARMA PROPIA PARA JUGADORES
+    if player_active and player_active.estado == "vivo":
+        if player_active.cambios_restantes > 0:
+            st.info(f"🔄 **Cambios restantes de arma:** {player_active.cambios_restantes}")
+            if st.button("🎲 Cambiar Mi Arma", type="primary", use_container_width=True, key="btn_change_my_weapon"):
+                try:
+                    nuevo_objeto, cambios_left = game_logic.ejecutar_cambio_arma(db, room_id, player_active.id)
+                    asig_obj = db.query(Assignment).filter_by(room_id=room_id, asesino_id=player_active.id).first()
+                    victima_obj = db.query(Player).get(asig_obj.victima_id) if asig_obj else None
 
-    if not players_con_cambios:
-        st.info("No hay ningún jugador vivo con cambios disponibles en esta sala.")
-    else:
-        dict_cambios = {f"{p.user.nombre} ({p.cambios_restantes} cambios)": p.id for p in players_con_cambios}
-        player_sel_key = st.selectbox("Selecciona un jugador para el cambio:", list(dict_cambios.keys()))
-        player_sel_id = dict_cambios[player_sel_key]
+                    exito_email = email_service.send_item_change_email(
+                        to_email=current_user.email,
+                        nombre_jugador=current_user.nombre,
+                        nuevo_objeto=nuevo_objeto,
+                        cambios_restantes=cambios_left,
+                        nombre_victima=victima_obj.user.nombre if victima_obj else None
+                    )
 
-        if st.button("🎲 Ejecutar Cambio", type="primary", use_container_width=True):
-            try:
-                nuevo_objeto, cambios_left = game_logic.ejecutar_cambio_arma(db, room_id, player_sel_id)
-                player_obj = db.query(Player).get(player_sel_id)
-                asig_obj = db.query(Assignment).filter_by(room_id=room_id, asesino_id=player_sel_id).first()
-                victima_obj = db.query(Player).get(asig_obj.victima_id) if asig_obj else None
+                    st.success(f"✅ ¡Cambio realizado! Tu nueva arma es **{nuevo_objeto}**. Te quedan {cambios_left} cambios.")
+                    if exito_email:
+                        st.info(f"📩 Correo enviado a {current_user.email}.")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error al ejecutar el cambio: {e}")
+        else:
+            st.warning("⚠️ Has agotado tus 2 cambios individuales de arma en esta partida.")
+    elif player_active and player_active.estado == "muerto":
+        st.caption("☠️ Estás eliminado/a de esta sala.")
 
-                exito_email = email_service.send_item_change_email(
-                    to_email=player_obj.user.email,
-                    nombre_jugador=player_obj.user.nombre,
-                    nuevo_objeto=nuevo_objeto,
-                    cambios_restantes=cambios_left,
-                    nombre_victima=victima_obj.user.nombre if victima_obj else None
-                )
+    # 2. CAMBIO DE ARMA PARA OTRO JUGADOR (EXCLUSIVO DEL HOST)
+    if is_host:
+        st.markdown("---")
+        st.subheader("👑 Cambio de Arma para Jugadores (Solo Host)")
+        players_con_cambios = db.query(Player).filter(
+            (Player.room_id == room_id) & (Player.cambios_restantes > 0) & (Player.estado == "vivo")
+        ).all()
 
-                st.success(f"✅ ¡Cambio realizado! La nueva arma de **{player_obj.user.nombre}** es **{nuevo_objeto}**. Le quedan {cambios_left} cambios.")
-                if exito_email:
-                    st.info(f"📩 Correo enviado a {player_obj.user.email}.")
-                st.rerun()
-            except Exception as e:
-                st.error(f"Error al ejecutar el cambio: {e}")
+        if players_con_cambios:
+            dict_cambios = {f"{p.user.nombre} ({p.cambios_restantes} cambios restantes)": p.id for p in players_con_cambios}
+            player_sel_key = st.selectbox("Seleccionar jugador a quien cambiar el arma:", list(dict_cambios.keys()), key="host_weapon_change_sel")
+            player_sel_id = dict_cambios[player_sel_key]
+
+            if st.button("🎲 Ejecutar Cambio a este Jugador (Host)", use_container_width=True, key="btn_host_change_player_weapon"):
+                try:
+                    nuevo_objeto, cambios_left = game_logic.ejecutar_cambio_arma(db, room_id, player_sel_id)
+                    player_obj = db.query(Player).get(player_sel_id)
+                    asig_obj = db.query(Assignment).filter_by(room_id=room_id, asesino_id=player_sel_id).first()
+                    victima_obj = db.query(Player).get(asig_obj.victima_id) if asig_obj else None
+
+                    exito_email = email_service.send_item_change_email(
+                        to_email=player_obj.user.email,
+                        nombre_jugador=player_obj.user.nombre,
+                        nuevo_objeto=nuevo_objeto,
+                        cambios_restantes=cambios_left,
+                        nombre_victima=victima_obj.user.nombre if victima_obj else None
+                    )
+
+                    st.success(f"✅ ¡Cambio realizado! La nueva arma de **{player_obj.user.nombre}** es **{nuevo_objeto}**. Le quedan {cambios_left} cambios.")
+                    if exito_email:
+                        st.info(f"📩 Correo enviado a {player_obj.user.email}.")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error al ejecutar el cambio: {e}")
+        else:
+            st.caption("No hay jugadores vivos con cambios restantes.")
 
     st.markdown("---")
     st.subheader("🔄 Rotación Periódica General")
-    st.write("Reorganiza los objetivos y armas entre todos los supervivientes de esta sala.")
     st.info(f"⏱️ **Próxima rotación automática programada:** `{proxima_rot_str}` (Cada 3 días a las 8:00 AM).")
 
     if is_host:
@@ -788,10 +819,9 @@ with tab_rotacion:
                     progress.progress((idx + 1) / len(asignaciones))
 
                 st.success("📩 Notificaciones de rotación enviadas a todos los supervivientes.")
+                st.rerun()
             except Exception as e:
                 st.error(f"Error al rotar sala: {e}")
-    else:
-        st.warning(f"🔒 La rotación periódica manual solo puede ser ejecutada por el Host (**{host_nombre}**).")
 
 # =========================================================
 # PESTAÑA 5: PERFIL DE USUARIO Y INSIGNIAS (PLAYER BADGES)
