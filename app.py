@@ -142,7 +142,6 @@ init_db()
 db = SessionLocal()
 
 st.title("🔪 Estás Muerto")
-st.caption("Panel de control relacional multisala (SQLAlchemy)")
 
 # ---------------------------------------------------------
 # DETECCIÓN DE PARÁMETROS EN URL (?sala=CODIGO)
