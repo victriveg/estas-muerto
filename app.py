@@ -28,6 +28,11 @@ components.html("""
                 window.parent.document
             ];
             const selectors = [
+                '[data-testid="stToolbarActionButton"]',
+                '[class*="stToolbarActionButton"]',
+                'button[aria-label*="Fork"]',
+                'button[aria-label*="GitHub"]',
+                'button[aria-label*="git"]',
                 'header a',
                 '[data-testid="stHeader"] a',
                 '[data-testid="stToolbar"] a',
@@ -57,7 +62,7 @@ components.html("""
         } catch(e) {}
     }
     removeCloudButtons();
-    setInterval(removeCloudButtons, 300);
+    setInterval(removeCloudButtons, 200);
 </script>
 """, height=0, width=0)
 
@@ -67,7 +72,12 @@ components.html("""
 # ---------------------------------------------------------
 st.markdown("""
 <style>
-/* 1. Ocultar todos los enlaces y botones de GitHub, Fork, Streamlit Cloud y perfil */
+/* 1. Ocultar todos los stToolbarActionButton (emoticono Git y botón de Fork) */
+[data-testid="stToolbarActionButton"],
+[class*="stToolbarActionButton"],
+button[aria-label*="Fork"],
+button[aria-label*="GitHub"],
+button[aria-label*="git"],
 header a,
 [data-testid="stHeader"] a,
 [data-testid="stToolbar"] a,
