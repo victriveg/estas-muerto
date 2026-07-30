@@ -76,50 +76,10 @@ components.html("""
     purgeCloudElements();
     setInterval(purgeCloudElements, 100);
 
-    // Mover el botón de refresco directamente al Header a la izquierda de los 3 puntos (#MainMenu)
-    function teleportRefreshButton() {
-        try {
-            const docs = [window.document, window.parent.document, window.top.document];
-            docs.forEach(doc => {
-                if (!doc) return;
-                const menu = doc.querySelector('#MainMenu') || 
-                             doc.querySelector('[data-testid="stMainMenu"]') ||
-                             doc.querySelector('button[aria-label="Main menu"]') ||
-                             doc.querySelector('button[aria-label="Menú principal"]');
-                
-                const btnContainer = doc.querySelector('.teleport-header-btn');
-                const btn = doc.querySelector('button[key="btn_top_refresh"]') || (btnContainer ? btnContainer.querySelector('button') : null);
-
-                if (menu && btn && menu.parentNode) {
-                    if (btn.parentNode !== menu.parentNode) {
-                        btn.style.setProperty('margin-right', '10px', 'important');
-                        btn.style.setProperty('display', 'inline-flex', 'important');
-                        btn.style.setProperty('visibility', 'visible', 'important');
-                        btn.style.setProperty('opacity', '1', 'important');
-                        btn.style.setProperty('height', '38px', 'important');
-                        btn.style.setProperty('border-radius', '8px', 'important');
-                        menu.parentNode.insertBefore(btn, menu);
-                    }
-                }
-            });
-        } catch(e) {}
-    }
-    teleportRefreshButton();
-    setInterval(teleportRefreshButton, 150);
-
-    // Auto-refresco automático cada 5 segundos de los elementos del juego
+    // Auto-refresco automático en segundo plano cada 5 segundos de la pantalla
     setInterval(function() {
         try {
-            const docs = [window.document, window.parent.document, window.top.document];
-            docs.forEach(d => {
-                if (!d) return;
-                const btns = d.querySelectorAll('button');
-                btns.forEach(b => {
-                    if (b.innerText && (b.innerText.includes('Refrescar') || b.innerText.includes('🔄'))) {
-                        b.click();
-                    }
-                });
-            });
+            window.parent.postMessage({type: 'streamlit:rerun'}, '*');
         } catch(e) {}
     }, 5000);
 </script>
@@ -170,13 +130,10 @@ footer,
 }
 
 /* 3. Asegurar que SOLO el menú nativo de 3 puntos permanezca visible y funcional */
-/* 3. Asegurar que SOLO el menú nativo de 3 puntos y el botón de refresco permanezcan visibles en el header */
 #MainMenu,
 [data-testid="stMainMenu"],
 button[aria-label="Main menu"],
-button[aria-label="Menú principal"],
-button[key="btn_top_refresh"],
-.teleport-header-btn {
+button[aria-label="Menú principal"] {
     display: inline-flex !important;
     visibility: visible !important;
     opacity: 1 !important;
@@ -192,12 +149,6 @@ init_db()
 db = SessionLocal()
 
 st.title("🔪 Estás Muerto")
-
-# Botón de refresco (se teletransporta al Header superior a la izquierda del menú #MainMenu)
-st.markdown('<div class="teleport-header-btn">', unsafe_allow_html=True)
-if st.button("🔄 Refrescar", key="btn_top_refresh"):
-    st.rerun()
-st.markdown('</div>', unsafe_allow_html=True)
 
 # ---------------------------------------------------------
 # DETECCIÓN DE PARÁMETROS EN URL (?sala=CODIGO)
