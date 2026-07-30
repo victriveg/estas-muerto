@@ -370,11 +370,11 @@ if player_active and player_active.estado == "vivo" and room_actual.estado == "e
 # ---------------------------------------------------------
 if is_host:
     tab_estado, tab_gestion, tab_setup, tab_perfil = st.tabs([
-        "🏆 Estado", "🔪 Baja & Rotación", "⚙️ Setup", "👤 Mi Perfil"
+        "🏆 Estado", "🎯 Misión", "⚙️ Setup", "👤 Mi Perfil"
     ])
 else:
     tab_estado, tab_gestion, tab_perfil = st.tabs([
-        "🏆 Estado", "🔪 Baja & Rotación", "👤 Mi Perfil"
+        "🏆 Estado", "🎯 Misión", "👤 Mi Perfil"
     ])
     tab_setup = None
 
