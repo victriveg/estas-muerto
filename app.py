@@ -549,169 +549,169 @@ if is_host and tab_setup:
     with tab_setup:
         st.subheader("⚙️ Configuración de la Partida y Sala")
 
-    if is_host:
-        st.success(f"👑 **Eres el Host (Creador) de la sala {room_actual.nombre}.** Tienes permisos completos de administración.")
-    else:
-        st.warning(f"ℹ️ El creador y administrador de esta sala es **{host_nombre}**. Tu rol actual es participante.")
-
-    st.info(f"📢 **Comparte esta sala con tus amigos:**\n\n🔑 **Código PIN:** `{room_actual.codigo}`\n\n⏱️ **Rotación Programada:** Cada 3 días a las 8:00 AM (Próxima: `{proxima_rot_str}`)")
-
-    # Ajuste del Modo Asesino Ciego para el Host
-    if is_host:
-        new_ciego = st.checkbox("🎭 **Activar modo 'Asesino Ciego'** (Oculta la lista de supervivientes vivos a los jugadores)", value=room_actual.modo_ciego, key="chk_modo_ciego_setup")
-        if new_ciego != room_actual.modo_ciego:
-            room_actual.modo_ciego = new_ciego
-            db.commit()
-            st.success(f"Modo Asesino Ciego {'activado' if new_ciego else 'desactivado'}.")
-            st.rerun()
-
-    # Botón directo para que el usuario autenticado se una a esta sala
-    if not player_active:
-        st.info(f"💡 No estás inscrito en la sala **{room_actual.nombre}**.")
-        if st.button("🎮 Unirme a esta Sala", type="primary", use_container_width=True):
-            p_new = Player(user_id=current_user.id, room_id=room_id, estado="vivo", bajas=0, cambios_restantes=2)
-            db.add(p_new)
-            db.commit()
-            st.success(f"¡Te has unido a {room_actual.nombre}!")
-            st.rerun()
-
-    # A. Crear Nueva Sala con Generación Automática de PIN y Modo Ciego
-    with st.expander("🏠 Crear Nueva Sala", expanded=False):
-        c_n1, c_n2 = st.columns(2)
-        n_nombre = c_n1.text_input("Nombre de la Sala")
-        n_codigo = c_n2.text_input("Código PIN personalizado (opcional - 6 caracteres)")
-        n_ciego_opt = st.checkbox("🎭 Activar modo 'Asesino Ciego' en esta nueva sala", key="chk_ciego_create")
-
-        if st.button("➕ Crear Sala", use_container_width=True):
-            if n_nombre:
-                if n_codigo.strip():
-                    c_clean = n_codigo.strip().upper()
-                else:
-                    c_clean = game_logic.generar_codigo_pin(db)
-
-                if db.query(Room).filter_by(codigo=c_clean).first():
-                    st.error(f"❌ Ya existe una sala con el código PIN '{c_clean}'.")
-                else:
-                    n_room = Room(codigo=c_clean, nombre=n_nombre.strip(), estado="espera", host_id=current_user.id, modo_ciego=n_ciego_opt)
-                    db.add(n_room)
-                    db.commit()
-                    db.refresh(n_room)
-                    p_creator = Player(user_id=current_user.id, room_id=n_room.id, estado="vivo", bajas=0, cambios_restantes=2)
-                    db.add(p_creator)
-                    db.commit()
-                    st.session_state["active_room_id"] = n_room.id
-                    st.success(f"🎉 Sala '{n_nombre}' creada con éxito. Código PIN: **{c_clean}**.")
-                    st.rerun()
-            else:
-                st.warning("Por favor completa el nombre de la sala.")
-
-    # B. Agregar / Unir Otro Jugador a la Sala Activa
-    with st.expander("👤 Añadir Otro Jugador a esta Sala (Manual)", expanded=False):
-        col1, col2 = st.columns(2)
-        nuevo_nombre = col1.text_input("Nombre del Jugador")
-        nuevo_email = col2.text_input("Correo Electrónico")
-
-        if st.button("➕ Registrar e Inscribir", use_container_width=True):
-            if nuevo_nombre and nuevo_email:
-                name_clean = nuevo_nombre.strip()
-                email_clean = nuevo_email.strip().lower()
-
-                user = db.query(User).filter_by(email=email_clean).first()
-                if not user:
-                    user = User(nombre=name_clean, email=email_clean, password_hash=auth.hash_password("1234"))
-                    db.add(user)
-                    db.commit()
-                    db.refresh(user)
-
-                player_existing = db.query(Player).filter_by(user_id=user.id, room_id=room_id).first()
-                if player_existing:
-                    st.error(f"❌ El usuario '{email_clean}' ya forma parte de esta sala.")
-                else:
-                    player_new = Player(user_id=user.id, room_id=room_id, estado="vivo", bajas=0, cambios_restantes=2)
-                    db.add(player_new)
-                    db.commit()
-                    st.success(f"Jugador '{name_clean}' inscrito en {room_actual.nombre}.")
-                    st.rerun()
-            else:
-                st.warning("Rellena ambos campos (Nombre y Email).")
-
-        inscritos = db.query(Player).filter_by(room_id=room_id).all()
-        if inscritos:
-            st.markdown("---")
-            st.caption("📋 **Jugadores en esta sala:**")
-            st.dataframe(pd.DataFrame([{
-                "Nombre": p.user.nombre,
-                "Email": p.user.email,
-                "Estado": p.estado,
-                "Cambios Restantes": p.cambios_restantes
-            } for p in inscritos]), hide_index=True, use_container_width=True)
-
-    # C. Catálogo de Objetos / Armas
-    with st.expander("🛋️ Catálogo de Objetos / Armas", expanded=False):
         if is_host:
-            nuevo_obj = st.text_input("Nuevo Objeto para esta sala")
-            if st.button("➕ Agregar Objeto", use_container_width=True):
-                if nuevo_obj:
-                    o_clean = nuevo_obj.strip()
-                    obj_exist = db.query(GameObject).filter(
-                        (GameObject.nombre_objeto == o_clean) & 
-                        ((GameObject.room_id == None) | (GameObject.room_id == room_id))
-                    ).first()
-                    if obj_exist:
-                        st.error("El objeto ya existe en el catálogo.")
-                    else:
-                        o_new = GameObject(nombre_objeto=o_clean, room_id=room_id)
-                        db.add(o_new)
-                        db.commit()
-                        st.success(f"Objeto '{o_clean}' añadido al catálogo.")
-                        st.rerun()
+            st.success(f"👑 **Eres el Host (Creador) de la sala {room_actual.nombre}.** Tienes permisos completos de administración.")
         else:
-            st.caption("🔒 Solo el Host de la sala puede agregar nuevos objetos al catálogo.")
+            st.warning(f"ℹ️ El creador y administrador de esta sala es **{host_nombre}**. Tu rol actual es participante.")
 
-        objs_disponibles = game_logic.obtener_objetos_disponibles(db, room_id)
-        st.dataframe(pd.DataFrame([{"Objeto": o} for o in objs_disponibles]), hide_index=True, use_container_width=True)
+        st.info(f"📢 **Comparte esta sala con tus amigos:**\n\n🔑 **Código PIN:** `{room_actual.codigo}`\n\n⏱️ **Rotación Programada:** Cada 3 días a las 8:00 AM (Próxima: `{proxima_rot_str}`)")
 
-    st.markdown("---")
-    # D. Iniciar Partida (Restringido al Host)
-    st.subheader("🚀 Iniciar Partida & Repartir Víctimas")
-    st.caption("Al pulsar este botón se iniciará el ciclo cerrado de asesinatos para los jugadores vivos de esta sala.")
-
-    if is_host:
-        if st.button("💥 INICIAR PARTIDA Y ENVIAR CORREOS", type="primary", use_container_width=True):
-            try:
-                asignaciones = game_logic.generar_ciclo_cerrado(db, room_id)
-                st.success("✅ ¡Partida iniciada! Se han generado los ciclos de asignación.")
-
-                vivos_nombres = [p.user.nombre for p in db.query(Player).filter_by(room_id=room_id, estado="vivo").all()]
-                progress = st.progress(0)
-                for idx, asig in enumerate(asignaciones):
-                    if idx > 0:
-                        time.sleep(1)
-                    asesino_p = db.query(Player).get(asig.asesino_id)
-                    victima_p = db.query(Player).get(asig.victima_id)
-                    
-                    html_msg = email_service.build_assignment_email_html(
-                        nombre_asesino=asesino_p.user.nombre,
-                        nombre_victima=victima_p.user.nombre,
-                        objeto=asig.objeto,
-                        vivos_lista=vivos_nombres,
-                        historial_bajas=[],
-                        modo_ciego=room_actual.modo_ciego
-                    )
-                    email_service.send_email(
-                        to_email=asesino_p.user.email,
-                        subject="🔪 [INICIO DE PARTIDA] Tu objetivo ha sido asignado - Estás Muerto",
-                        body_html=html_msg
-                    )
-                    progress.progress((idx + 1) / len(asignaciones))
-                
-                st.balloons()
-                st.success("📩 Correos secretos de inicio enviados.")
+        # Ajuste del Modo Asesino Ciego para el Host
+        if is_host:
+            new_ciego = st.checkbox("🎭 **Activar modo 'Asesino Ciego'** (Oculta la lista de supervivientes vivos a los jugadores)", value=room_actual.modo_ciego, key="chk_modo_ciego_setup")
+            if new_ciego != room_actual.modo_ciego:
+                room_actual.modo_ciego = new_ciego
+                db.commit()
+                st.success(f"Modo Asesino Ciego {'activado' if new_ciego else 'desactivado'}.")
                 st.rerun()
-            except Exception as e:
-                st.error(f"Error al iniciar partida: {e}")
-    else:
-        st.warning(f"🔒 El inicio de la partida requiere permisos de Host. Contacta a **{host_nombre}** para iniciar la partida.")
+
+        # Botón directo para que el usuario autenticado se una a esta sala
+        if not player_active:
+            st.info(f"💡 No estás inscrito en la sala **{room_actual.nombre}**.")
+            if st.button("🎮 Unirme a esta Sala", type="primary", use_container_width=True):
+                p_new = Player(user_id=current_user.id, room_id=room_id, estado="vivo", bajas=0, cambios_restantes=2)
+                db.add(p_new)
+                db.commit()
+                st.success(f"¡Te has unido a {room_actual.nombre}!")
+                st.rerun()
+
+        # A. Crear Nueva Sala con Generación Automática de PIN y Modo Ciego
+        with st.expander("🏠 Crear Nueva Sala", expanded=False):
+            c_n1, c_n2 = st.columns(2)
+            n_nombre = c_n1.text_input("Nombre de la Sala")
+            n_codigo = c_n2.text_input("Código PIN personalizado (opcional - 6 caracteres)")
+            n_ciego_opt = st.checkbox("🎭 Activar modo 'Asesino Ciego' en esta nueva sala", key="chk_ciego_create")
+
+            if st.button("➕ Crear Sala", use_container_width=True):
+                if n_nombre:
+                    if n_codigo.strip():
+                        c_clean = n_codigo.strip().upper()
+                    else:
+                        c_clean = game_logic.generar_codigo_pin(db)
+
+                    if db.query(Room).filter_by(codigo=c_clean).first():
+                        st.error(f"❌ Ya existe una sala con el código PIN '{c_clean}'.")
+                    else:
+                        n_room = Room(codigo=c_clean, nombre=n_nombre.strip(), estado="espera", host_id=current_user.id, modo_ciego=n_ciego_opt)
+                        db.add(n_room)
+                        db.commit()
+                        db.refresh(n_room)
+                        p_creator = Player(user_id=current_user.id, room_id=n_room.id, estado="vivo", bajas=0, cambios_restantes=2)
+                        db.add(p_creator)
+                        db.commit()
+                        st.session_state["active_room_id"] = n_room.id
+                        st.success(f"🎉 Sala '{n_nombre}' creada con éxito. Código PIN: **{c_clean}**.")
+                        st.rerun()
+                else:
+                    st.warning("Por favor completa el nombre de la sala.")
+
+        # B. Agregar / Unir Otro Jugador a la Sala Activa
+        with st.expander("👤 Añadir Otro Jugador a esta Sala (Manual)", expanded=False):
+            col1, col2 = st.columns(2)
+            nuevo_nombre = col1.text_input("Nombre del Jugador")
+            nuevo_email = col2.text_input("Correo Electrónico")
+
+            if st.button("➕ Registrar e Inscribir", use_container_width=True):
+                if nuevo_nombre and nuevo_email:
+                    name_clean = nuevo_nombre.strip()
+                    email_clean = nuevo_email.strip().lower()
+
+                    user = db.query(User).filter_by(email=email_clean).first()
+                    if not user:
+                        user = User(nombre=name_clean, email=email_clean, password_hash=auth.hash_password("1234"))
+                        db.add(user)
+                        db.commit()
+                        db.refresh(user)
+
+                    player_existing = db.query(Player).filter_by(user_id=user.id, room_id=room_id).first()
+                    if player_existing:
+                        st.error(f"❌ El usuario '{email_clean}' ya forma parte de esta sala.")
+                    else:
+                        player_new = Player(user_id=user.id, room_id=room_id, estado="vivo", bajas=0, cambios_restantes=2)
+                        db.add(player_new)
+                        db.commit()
+                        st.success(f"Jugador '{name_clean}' inscrito en {room_actual.nombre}.")
+                        st.rerun()
+                else:
+                    st.warning("Rellena ambos campos (Nombre y Email).")
+
+            inscritos = db.query(Player).filter_by(room_id=room_id).all()
+            if inscritos:
+                st.markdown("---")
+                st.caption("📋 **Jugadores en esta sala:**")
+                st.dataframe(pd.DataFrame([{
+                    "Nombre": p.user.nombre,
+                    "Email": p.user.email,
+                    "Estado": p.estado,
+                    "Cambios Restantes": p.cambios_restantes
+                } for p in inscritos]), hide_index=True, use_container_width=True)
+
+        # C. Catálogo de Objetos / Armas
+        with st.expander("🛋️ Catálogo de Objetos / Armas", expanded=False):
+            if is_host:
+                nuevo_obj = st.text_input("Nuevo Objeto para esta sala")
+                if st.button("➕ Agregar Objeto", use_container_width=True):
+                    if nuevo_obj:
+                        o_clean = nuevo_obj.strip()
+                        obj_exist = db.query(GameObject).filter(
+                            (GameObject.nombre_objeto == o_clean) & 
+                            ((GameObject.room_id == None) | (GameObject.room_id == room_id))
+                        ).first()
+                        if obj_exist:
+                            st.error("El objeto ya existe en el catálogo.")
+                        else:
+                            o_new = GameObject(nombre_objeto=o_clean, room_id=room_id)
+                            db.add(o_new)
+                            db.commit()
+                            st.success(f"Objeto '{o_clean}' añadido al catálogo.")
+                            st.rerun()
+            else:
+                st.caption("🔒 Solo el Host de la sala puede agregar nuevos objetos al catálogo.")
+
+            objs_disponibles = game_logic.obtener_objetos_disponibles(db, room_id)
+            st.dataframe(pd.DataFrame([{"Objeto": o} for o in objs_disponibles]), hide_index=True, use_container_width=True)
+
+        st.markdown("---")
+        # D. Iniciar Partida (Restringido al Host)
+        st.subheader("🚀 Iniciar Partida & Repartir Víctimas")
+        st.caption("Al pulsar este botón se iniciará el ciclo cerrado de asesinatos para los jugadores vivos de esta sala.")
+
+        if is_host:
+            if st.button("💥 INICIAR PARTIDA Y ENVIAR CORREOS", type="primary", use_container_width=True):
+                try:
+                    asignaciones = game_logic.generar_ciclo_cerrado(db, room_id)
+                    st.success("✅ ¡Partida iniciada! Se han generado los ciclos de asignación.")
+
+                    vivos_nombres = [p.user.nombre for p in db.query(Player).filter_by(room_id=room_id, estado="vivo").all()]
+                    progress = st.progress(0)
+                    for idx, asig in enumerate(asignaciones):
+                        if idx > 0:
+                            time.sleep(1)
+                        asesino_p = db.query(Player).get(asig.asesino_id)
+                        victima_p = db.query(Player).get(asig.victima_id)
+                        
+                        html_msg = email_service.build_assignment_email_html(
+                            nombre_asesino=asesino_p.user.nombre,
+                            nombre_victima=victima_p.user.nombre,
+                            objeto=asig.objeto,
+                            vivos_lista=vivos_nombres,
+                            historial_bajas=[],
+                            modo_ciego=room_actual.modo_ciego
+                        )
+                        email_service.send_email(
+                            to_email=asesino_p.user.email,
+                            subject="🔪 [INICIO DE PARTIDA] Tu objetivo ha sido asignado - Estás Muerto",
+                            body_html=html_msg
+                        )
+                        progress.progress((idx + 1) / len(asignaciones))
+                    
+                    st.balloons()
+                    st.success("📩 Correos secretos de inicio enviados.")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error al iniciar partida: {e}")
+        else:
+            st.warning(f"🔒 El inicio de la partida requiere permisos de Host. Contacta a **{host_nombre}** para iniciar la partida.")
 
 # =========================================================
 # PESTAÑA 4: ROTACIÓN / CAMBIO DE ARMA
