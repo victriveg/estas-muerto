@@ -1,25 +1,83 @@
+import os
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import streamlit as st
 
+def get_smtp_credentials():
+    """
+    Obtiene las credenciales de correo buscando en st.secrets (tanto [smtp] como nivel raíz)
+    y en variables de entorno (os.environ).
+    """
+    sender_email = None
+    sender_password = None
+    smtp_server = "smtp.gmail.com"
+    smtp_port = 587
+
+    # 1. Buscar en st.secrets["smtp"]
+    try:
+        if hasattr(st, "secrets") and "smtp" in st.secrets:
+            smtp_sec = st.secrets["smtp"]
+            sender_email = (
+                smtp_sec.get("sender_email") or 
+                smtp_sec.get("SMTP_EMAIL") or 
+                smtp_sec.get("SMTP_USER") or 
+                smtp_sec.get("email") or 
+                smtp_sec.get("user")
+            )
+            sender_password = (
+                smtp_sec.get("sender_password") or 
+                smtp_sec.get("SMTP_PASSWORD") or 
+                smtp_sec.get("SMTP_PASS") or 
+                smtp_sec.get("password") or 
+                smtp_sec.get("pass")
+            )
+            smtp_server = smtp_sec.get("smtp_server") or smtp_sec.get("SMTP_SERVER") or smtp_server
+            if smtp_sec.get("smtp_port") or smtp_sec.get("SMTP_PORT"):
+                smtp_port = int(smtp_sec.get("smtp_port") or smtp_sec.get("SMTP_PORT"))
+    except Exception:
+        pass
+
+    # 2. Buscar en st.secrets nivel raíz
+    try:
+        if hasattr(st, "secrets"):
+            sender_email = sender_email or (
+                st.secrets.get("sender_email") or 
+                st.secrets.get("SMTP_EMAIL") or 
+                st.secrets.get("SMTP_USER") or 
+                st.secrets.get("email")
+            )
+            sender_password = sender_password or (
+                st.secrets.get("sender_password") or 
+                st.secrets.get("SMTP_PASSWORD") or 
+                st.secrets.get("SMTP_PASS") or 
+                st.secrets.get("password")
+            )
+            smtp_server = st.secrets.get("smtp_server") or st.secrets.get("SMTP_SERVER") or smtp_server
+            if st.secrets.get("smtp_port") or st.secrets.get("SMTP_PORT"):
+                smtp_port = int(st.secrets.get("smtp_port") or st.secrets.get("SMTP_PORT"))
+    except Exception:
+        pass
+
+    # 3. Buscar en os.environ
+    sender_email = sender_email or os.environ.get("SENDER_EMAIL") or os.environ.get("SMTP_EMAIL") or os.environ.get("SMTP_USER")
+    sender_password = sender_password or os.environ.get("SENDER_PASSWORD") or os.environ.get("SMTP_PASSWORD") or os.environ.get("SMTP_PASS")
+    smtp_server = os.environ.get("SMTP_SERVER") or smtp_server
+    if os.environ.get("SMTP_PORT"):
+        smtp_port = int(os.environ.get("SMTP_PORT"))
+
+    return sender_email, sender_password, smtp_server, smtp_port
+
+
 def send_email(to_email, subject, body_html):
     """
-    Envía un correo electrónico usando las credenciales SMTP configuradas en .streamlit/secrets.toml.
-    Si no hay credenciales configuradas, muestra una advertencia sin romper la app.
+    Envía un correo electrónico usando las credenciales SMTP configuradas.
+    Si no hay credenciales configuradas, muestra una advertencia de simulación sin romper la app.
     """
-    try:
-        smtp_secrets = st.secrets.get("smtp", {})
-        sender_email = smtp_secrets.get("sender_email")
-        sender_password = smtp_secrets.get("sender_password")
-        smtp_server = smtp_secrets.get("smtp_server", "smtp.gmail.com")
-        smtp_port = int(smtp_secrets.get("smtp_port", 587))
-    except Exception as e:
-        st.warning(f"No se pudieron leer las credenciales SMTP de secrets.toml: {e}")
-        return False
+    sender_email, sender_password, smtp_server, smtp_port = get_smtp_credentials()
 
     if not sender_email or not sender_password or sender_email == "tu_cuenta@gmail.com":
-        st.info(f"📧 [Simulación de Correo] Para: {to_email}\nAsunto: {subject}\n\n(Configura la sección [smtp] en secrets.toml para enviar correos reales)")
+        st.info(f"📧 [Simulación de Correo] Para: {to_email}\nAsunto: {subject}\n\n⚠️ No se detectaron credenciales SMTP válidas en secrets.toml o Streamlit Secrets.")
         return True
 
     try:
@@ -31,15 +89,23 @@ def send_email(to_email, subject, body_html):
         # Adjuntar cuerpo HTML
         msg.attach(MIMEText(body_html, "html"))
 
-        # Conectar al servidor SMTP
-        with smtplib.SMTP(smtp_server, smtp_port) as server:
-            server.starttls()
-            server.login(sender_email, sender_password)
-            server.sendmail(sender_email, to_email, msg.as_string())
+        # Conectar al servidor SMTP (Soporta Port 465 SSL y Port 587 STARTTLS)
+        if smtp_port == 465:
+            with smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=10) as server:
+                server.login(sender_email, sender_password)
+                server.sendmail(sender_email, to_email, msg.as_string())
+        else:
+            with smtplib.SMTP(smtp_server, smtp_port, timeout=10) as server:
+                server.starttls()
+                server.login(sender_email, sender_password)
+                server.sendmail(sender_email, to_email, msg.as_string())
         
         return True
+    except smtplib.SMTPAuthenticationError as e:
+        st.error(f"❌ Error de Autenticación SMTP ({sender_email}): {e}\n\n💡 **Solución para Gmail:** Google requiere una **Contraseña de Aplicación** de 16 caracteres (no tu contraseña habitual). Genera una en `Cuenta de Google -> Seguridad -> Verificación en 2 pasos -> Contraseñas de aplicaciones`.")
+        return False
     except Exception as e:
-        st.error(f"Error al enviar correo a {to_email}: {e}")
+        st.error(f"❌ Error al enviar correo a {to_email}: {e}")
         return False
 
 
@@ -275,5 +341,3 @@ def send_password_reset_email(to_email, nombre_usuario, token):
     html_msg = build_password_reset_email_html(nombre_usuario, token)
     subject = "🔑 [RESTABLECER CONTRASEÑA] Tu código de recuperación - Estás Muerto"
     return send_email(to_email=to_email, subject=subject, body_html=html_msg)
-
-

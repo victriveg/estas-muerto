@@ -922,8 +922,40 @@ if is_host and tab_setup:
             objs_disponibles = game_logic.obtener_objetos_disponibles(db, room_id)
             st.dataframe(pd.DataFrame([{"Objeto": o} for o in objs_disponibles]), hide_index=True, use_container_width=True)
 
+        # D. Diagnóstico y Prueba de Envío de Correo (SMTP)
+        with st.expander("✉️ Diagnóstico y Prueba de Envío de Correo (SMTP)", expanded=False):
+            sender_email, sender_password, smtp_server, smtp_port = email_service.get_smtp_credentials()
+            if sender_email and sender_password and sender_email != "tu_cuenta@gmail.com":
+                st.success(f"✅ **Credenciales SMTP detectadas:**\n- **Remitente:** `{sender_email}`\n- **Servidor:** `{smtp_server}:{smtp_port}`")
+            else:
+                st.warning("⚠️ **No se detectaron credenciales SMTP válidas.** La aplicación está funcionando en modo simulación.")
+                st.info("""
+                **Para enviar correos reales, añade la sección `[smtp]` en tu `.streamlit/secrets.toml` o en los Secrets de Streamlit Cloud:**
+                ```toml
+                [smtp]
+                sender_email = "tu_correo@gmail.com"
+                sender_password = "tu_contraseña_de_aplicacion"
+                smtp_server = "smtp.gmail.com"
+                smtp_port = 587
+                ```
+                💡 *Nota sobre Gmail:* Google requiere usar una **Contraseña de Aplicación de 16 caracteres** (no tu clave habitual). La generas en tu Cuenta de Google -> Seguridad -> Verificación en 2 pasos -> Contraseñas de aplicaciones.
+                """)
+
+            test_dest = st.text_input("Correo de prueba de envío:", value=current_user.email if current_user else "", key="smtp_test_dest")
+            if st.button("🧪 Enviar Correo de Prueba", use_container_width=True, key="btn_send_smtp_test"):
+                if test_dest:
+                    res_test = email_service.send_email(
+                        to_email=test_dest.strip(),
+                        subject="🧪 [PRUEBA] Verificación SMTP - Estás Muerto",
+                        body_html="<h3>✅ Conexión SMTP Exitosa</h3><p>Si recibes este correo, tu configuración de correo funciona perfectamente.</p>"
+                    )
+                    if res_test:
+                        st.success("✅ Prueba de correo procesada.")
+                else:
+                    st.warning("Escribe un correo de destino.")
+
         st.markdown("---")
-        # D. Iniciar Partida (Restringido al Host)
+        # E. Iniciar Partida (Restringido al Host)
         st.subheader("🚀 Iniciar Partida & Repartir Víctimas")
         st.caption("Al pulsar este botón se iniciará el ciclo cerrado de asesinatos para los jugadores vivos de esta sala.")
 
