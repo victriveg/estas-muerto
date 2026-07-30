@@ -389,11 +389,13 @@ with tab_estado:
         if room_actual.modo_ciego and is_host:
             st.caption("👑 *(Visión exclusiva de Host en Modo Asesino Ciego)*")
 
-        vivos_players = db.query(Player).filter_by(room_id=room_id, estado="vivo").all()
+        vivos = db.query(Player).filter_by(room_id=room_id, estado="vivo").all()
+        muertos = db.query(Player).filter_by(room_id=room_id, estado="muerto").order_by(Player.fecha_eliminacion.desc()).all()
+        todos_supervivientes = vivos + muertos
         
-        if vivos_players:
+        if todos_supervivientes:
             tabla_vivos = []
-            for p in vivos_players:
+            for p in todos_supervivientes:
                 tiempo_str = "¡Sobreviviendo! 👑" if p.estado == "vivo" else (
                     p.fecha_eliminacion.strftime("%Y-%m-%d %H:%M") if p.fecha_eliminacion else "Eliminado"
                 )
@@ -406,7 +408,7 @@ with tab_estado:
                 })
             st.dataframe(pd.DataFrame(tabla_vivos), hide_index=True, use_container_width=True)
         else:
-            st.info("No hay jugadores vivos actualmente en esta sala.")
+            st.info("No hay jugadores en esta sala.")
 
     st.markdown("---")
     st.subheader("🥇 Ranking de Asesinos")
@@ -414,16 +416,20 @@ with tab_estado:
     all_players = db.query(Player).filter_by(room_id=room_id).order_by(Player.bajas.desc()).all()
     if all_players:
         ranking_list = []
+        prev_bajas = None
+        prev_pos = 0
         for idx, p in enumerate(all_players, start=1):
-            tiempo_str = "¡Sobrevivió hasta el final! 👑" if p.estado == "vivo" else (
-                p.fecha_eliminacion.strftime("%Y-%m-%d %H:%M") if p.fecha_eliminacion else "Eliminado"
-            )
+            if p.bajas == prev_bajas:
+                pos_str = f"{prev_pos}º"
+            else:
+                pos_str = f"{idx}º"
+                prev_pos = idx
+                prev_bajas = p.bajas
+
             ranking_list.append({
-                "Posición": f"{idx}º",
+                "Posición": pos_str,
                 "Nombre": p.user.nombre,
-                "Bajas": p.bajas,
-                "Estado": p.estado.capitalize(),
-                "Supervivencia": tiempo_str
+                "Bajas": p.bajas
             })
         st.dataframe(pd.DataFrame(ranking_list), hide_index=True, use_container_width=True)
 
