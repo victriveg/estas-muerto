@@ -368,9 +368,15 @@ if player_active and player_active.estado == "vivo" and room_actual.estado == "e
 # ---------------------------------------------------------
 # INTERFAZ PRINCIPAL EN PESTAÑAS
 # ---------------------------------------------------------
-tab_estado, tab_gestion, tab_setup, tab_rotacion, tab_perfil = st.tabs([
-    "🏆 Estado", "🔪 Baja", "⚙️ Setup", "🔄 Rotación/Cambio", "👤 Mi Perfil"
-])
+if is_host:
+    tab_estado, tab_gestion, tab_setup, tab_rotacion, tab_perfil = st.tabs([
+        "🏆 Estado", "🔪 Baja", "⚙️ Setup", "🔄 Rotación/Cambio", "👤 Mi Perfil"
+    ])
+else:
+    tab_estado, tab_gestion, tab_rotacion, tab_perfil = st.tabs([
+        "🏆 Estado", "🔪 Baja", "🔄 Rotación/Cambio", "👤 Mi Perfil"
+    ])
+    tab_setup = None
 
 # =========================================================
 # PESTAÑA 1: ESTADO Y RANKING
@@ -539,8 +545,9 @@ with tab_gestion:
 # =========================================================
 # PESTAÑA 3: CONFIGURACIÓN / SETUP
 # =========================================================
-with tab_setup:
-    st.subheader("⚙️ Configuración de la Partida y Sala")
+if is_host and tab_setup:
+    with tab_setup:
+        st.subheader("⚙️ Configuración de la Partida y Sala")
 
     if is_host:
         st.success(f"👑 **Eres el Host (Creador) de la sala {room_actual.nombre}.** Tienes permisos completos de administración.")
