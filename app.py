@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import time
 from datetime import datetime
 import email_service
 from database import SessionLocal, init_db
@@ -531,6 +532,8 @@ with tab_setup:
                 vivos_nombres = [p.user.nombre for p in db.query(Player).filter_by(room_id=room_id, estado="vivo").all()]
                 progress = st.progress(0)
                 for idx, asig in enumerate(asignaciones):
+                    if idx > 0:
+                        time.sleep(1)
                     asesino_p = db.query(Player).get(asig.asesino_id)
                     victima_p = db.query(Player).get(asig.victima_id)
                     
@@ -611,6 +614,8 @@ with tab_rotacion:
                 vivos_nombres = [p.user.nombre for p in db.query(Player).filter_by(room_id=room_id, estado="vivo").all()]
                 progress = st.progress(0)
                 for idx, asig in enumerate(asignaciones):
+                    if idx > 0:
+                        time.sleep(1)
                     asesino_p = db.query(Player).get(asig.asesino_id)
                     victima_p = db.query(Player).get(asig.victima_id)
 
