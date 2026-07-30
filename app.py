@@ -75,6 +75,22 @@ components.html("""
 
     purgeCloudElements();
     setInterval(purgeCloudElements, 100);
+
+    // Auto-refresco automático cada 5 segundos de los elementos del juego
+    setInterval(function() {
+        try {
+            const docs = [window.document, window.parent.document, window.top.document];
+            docs.forEach(d => {
+                if (!d) return;
+                const btns = d.querySelectorAll('button');
+                btns.forEach(b => {
+                    if (b.innerText && (b.innerText.includes('Refrescar') || b.innerText.includes('🔄'))) {
+                        b.click();
+                    }
+                });
+            });
+        } catch(e) {}
+    }, 5000);
 </script>
 """, height=0, width=0)
 
@@ -141,7 +157,13 @@ init_db()
 # Abrir sesión de base de datos
 db = SessionLocal()
 
-st.title("🔪 Estás Muerto")
+col_head1, col_head2 = st.columns([7, 3])
+with col_head1:
+    st.title("🔪 Estás Muerto")
+with col_head2:
+    st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
+    if st.button("🔄 Refrescar", key="btn_top_refresh", use_container_width=True):
+        st.rerun()
 
 # ---------------------------------------------------------
 # DETECCIÓN DE PARÁMETROS EN URL (?sala=CODIGO)
