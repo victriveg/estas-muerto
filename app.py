@@ -719,30 +719,78 @@ if is_host and tab_setup:
 with tab_rotacion:
     st.subheader("🎲 Cambio Individual de Arma")
 
+    # Feedback persistente tras cambio de arma
+    if "msg_feedback_arma" in st.session_state:
+        st.success(st.session_state.pop("msg_feedback_arma"))
+
     # 1. CAMBIO DE ARMA PROPIA PARA JUGADORES
     if player_active and player_active.estado == "vivo":
         if player_active.cambios_restantes > 0:
             st.info(f"🔄 **Cambios restantes de arma:** {player_active.cambios_restantes}")
+            
             if st.button("🎲 Cambiar Mi Arma", type="primary", use_container_width=True, key="btn_change_my_weapon"):
-                try:
-                    nuevo_objeto, cambios_left = game_logic.ejecutar_cambio_arma(db, room_id, player_active.id)
-                    asig_obj = db.query(Assignment).filter_by(room_id=room_id, asesino_id=player_active.id).first()
-                    victima_obj = db.query(Player).get(asig_obj.victima_id) if asig_obj else None
+                st.session_state["confirmar_cambio_arma_dialog"] = True
 
-                    exito_email = email_service.send_item_change_email(
-                        to_email=current_user.email,
-                        nombre_jugador=current_user.nombre,
-                        nuevo_objeto=nuevo_objeto,
-                        cambios_restantes=cambios_left,
-                        nombre_victima=victima_obj.user.nombre if victima_obj else None
-                    )
+            if st.session_state.get("confirmar_cambio_arma_dialog"):
+                if hasattr(st, "dialog"):
+                    @st.dialog("❓ Confirmar Cambio de Arma")
+                    def modal_confirmar():
+                        st.write("¿Estás seguro/a de que deseas cambiar tu arma actual por una nueva?")
+                        st.warning("⚠️ Esta acción consumirá 1 de tus 2 cambios disponibles en esta partida.")
+                        col_c1, col_c2 = st.columns(2)
+                        if col_c1.button("✅ Sí, Cambiar Arma", type="primary", use_container_width=True, key="btn_confirm_dialog"):
+                            st.session_state["confirmar_cambio_arma_dialog"] = False
+                            try:
+                                nuevo_objeto, cambios_left = game_logic.ejecutar_cambio_arma(db, room_id, player_active.id)
+                                asig_obj = db.query(Assignment).filter_by(room_id=room_id, asesino_id=player_active.id).first()
+                                victima_obj = db.query(Player).get(asig_obj.victima_id) if asig_obj else None
 
-                    st.success(f"✅ ¡Cambio realizado! Tu nueva arma es **{nuevo_objeto}**. Te quedan {cambios_left} cambios.")
-                    if exito_email:
-                        st.info(f"📩 Correo enviado a {current_user.email}.")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Error al ejecutar el cambio: {e}")
+                                email_service.send_item_change_email(
+                                    to_email=current_user.email,
+                                    nombre_jugador=current_user.nombre,
+                                    nuevo_objeto=nuevo_objeto,
+                                    cambios_restantes=cambios_left,
+                                    nombre_victima=victima_obj.user.nombre if victima_obj else None
+                                )
+
+                                st.session_state["msg_feedback_arma"] = f"🎉 ¡Arma cambiada con éxito! Tu nueva arma secreta es **{nuevo_objeto}**. Te quedan {cambios_left} cambios de arma."
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Error al cambiar arma: {e}")
+
+                        if col_c2.button("❌ Cancelar", use_container_width=True, key="btn_cancel_dialog"):
+                            st.session_state["confirmar_cambio_arma_dialog"] = False
+                            st.rerun()
+                    modal_confirmar()
+                else:
+                    with st.container(border=True):
+                        st.subheader("❓ Confirmar Cambio de Arma")
+                        st.write("¿Estás seguro/a de que deseas cambiar tu arma actual por una nueva?")
+                        st.warning("⚠️ Consumirá 1 de tus 2 cambios disponibles.")
+                        col_c1, col_c2 = st.columns(2)
+                        if col_c1.button("✅ Sí, Cambiar Arma", type="primary", use_container_width=True, key="btn_confirm_fallback"):
+                            st.session_state["confirmar_cambio_arma_dialog"] = False
+                            try:
+                                nuevo_objeto, cambios_left = game_logic.ejecutar_cambio_arma(db, room_id, player_active.id)
+                                asig_obj = db.query(Assignment).filter_by(room_id=room_id, asesino_id=player_active.id).first()
+                                victima_obj = db.query(Player).get(asig_obj.victima_id) if asig_obj else None
+
+                                email_service.send_item_change_email(
+                                    to_email=current_user.email,
+                                    nombre_jugador=current_user.nombre,
+                                    nuevo_objeto=nuevo_objeto,
+                                    cambios_restantes=cambios_left,
+                                    nombre_victima=victima_obj.user.nombre if victima_obj else None
+                                )
+
+                                st.session_state["msg_feedback_arma"] = f"🎉 ¡Arma cambiada con éxito! Tu nueva arma secreta es **{nuevo_objeto}**. Te quedan {cambios_left} cambios de arma."
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Error al cambiar arma: {e}")
+
+                        if col_c2.button("❌ Cancelar", use_container_width=True, key="btn_cancel_fallback"):
+                            st.session_state["confirmar_cambio_arma_dialog"] = False
+                            st.rerun()
         else:
             st.warning("⚠️ Has agotado tus 2 cambios individuales de arma en esta partida.")
     elif player_active and player_active.estado == "muerto":
