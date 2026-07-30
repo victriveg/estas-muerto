@@ -575,7 +575,6 @@ with tab_gestion:
                                 st.session_state["dialog_claim_kill"] = False
                                 st.rerun()
 
-            st.markdown("---")
         elif room_actual.estado == "espera":
             st.info("⏳ La partida aún no ha comenzado. Espera a que el Host inicie el juego para recibir tu objetivo.")
     elif player_active and player_active.estado == "muerto":
