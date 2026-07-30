@@ -342,10 +342,9 @@ if auto_rotated:
 host_nombre = room_actual.host.nombre if room_actual.host else "Sin Host"
 proxima_rot = game_logic.calcular_proxima_rotacion(room_actual)
 proxima_rot_str = proxima_rot.strftime("%Y-%m-%d %H:%M") if proxima_rot else "No programada"
-modo_ciego_txt = "🎭 **Activado**" if room_actual.modo_ciego else "👁️ **Desactivado**"
 
 # Info de la sala en Sidebar
-st.sidebar.info(f"**Sala Activa:** {room_actual.nombre}\n\n🔑 **PIN:** `{room_actual.codigo}`\n\n👑 **Host:** {host_nombre}\n\n🎭 **Asesino Ciego:** {modo_ciego_txt}\n\n📌 **Estado:** `{room_actual.estado}`\n\n⏱️ **Próxima Rotación (8am):** `{proxima_rot_str}`")
+st.sidebar.info(f"**Sala Activa:** {room_actual.nombre}\n\n🔑 **PIN:** `{room_actual.codigo}`\n\n👑 **Host:** {host_nombre}\n\n📌 **Estado:** `{room_actual.estado}`\n\n⏱️ **Próxima Rotación (8am):** `{proxima_rot_str}`")
 
 is_host = (current_user.id == room_actual.host_id)
 player_active = db.query(Player).filter_by(user_id=current_user.id, room_id=room_id).first()
