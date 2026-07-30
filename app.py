@@ -340,7 +340,7 @@ if auto_rotated:
 
 host_nombre = room_actual.host.nombre if room_actual.host else "Sin Host"
 proxima_rot = game_logic.calcular_proxima_rotacion(room_actual)
-proxima_rot_str = proxima_rot.strftime("%Y-%m-%d %H:%M") if proxima_rot else "No programada"
+proxima_rot_str = proxima_rot.strftime("%d-%m-%Y %H:%M") if proxima_rot else "No programada"
 
 # Info de la sala en Sidebar
 st.sidebar.info(f"**Sala Activa:** {room_actual.nombre}\n\n🔑 **PIN:** `{room_actual.codigo}`\n\n⏱️ **Próxima Rotación (8am):** `{proxima_rot_str}`")
@@ -403,7 +403,7 @@ with tab_estado:
             tabla_vivos = []
             for p in todos_supervivientes:
                 tiempo_str = "¡Sobreviviendo! 👑" if p.estado == "vivo" else (
-                    p.fecha_eliminacion.strftime("%Y-%m-%d %H:%M") if p.fecha_eliminacion else "Eliminado"
+                    p.fecha_eliminacion.strftime("%d-%m-%Y %H:%M") if p.fecha_eliminacion else "Eliminado"
                 )
                 tabla_vivos.append({
                     "Nombre": p.user.nombre,
@@ -446,7 +446,7 @@ with tab_estado:
         historial_data = []
         for l in logs:
             historial_data.append({
-                "Fecha": l.fecha.strftime("%Y-%m-%d %H:%M"),
+                "Fecha": l.fecha.strftime("%d-%m-%Y %H:%M"),
                 "Asesino": l.asesino.user.nombre if l.asesino else "Desconocido",
                 "Víctima": l.victima.user.nombre if l.victima else "Desconocido",
                 "Objeto": l.objeto
