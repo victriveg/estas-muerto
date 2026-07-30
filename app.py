@@ -376,7 +376,7 @@ tab_estado, tab_gestion, tab_setup, tab_rotacion, tab_perfil = st.tabs([
 # PESTAÑA 1: ESTADO Y RANKING
 # =========================================================
 with tab_estado:
-    st.subheader(f"🟢 Supervivientes - {room_actual.nombre}")
+    st.subheader("🟢 Supervivientes")
     
     # Comprobar Modo Asesino Ciego en partida activa
     if room_actual.modo_ciego and room_actual.estado == "en_juego" and not is_host:
@@ -394,11 +394,15 @@ with tab_estado:
         if vivos_players:
             tabla_vivos = []
             for p in vivos_players:
+                tiempo_str = "¡Sobreviviendo! 👑" if p.estado == "vivo" else (
+                    p.fecha_eliminacion.strftime("%Y-%m-%d %H:%M") if p.fecha_eliminacion else "Eliminado"
+                )
                 tabla_vivos.append({
                     "Nombre": p.user.nombre,
-                    "Email": p.user.email,
+                    "Estado": p.estado.capitalize(),
                     "Bajas": p.bajas,
-                    "Cambios Restantes": p.cambios_restantes
+                    "Cambios Restantes": p.cambios_restantes,
+                    "Supervivencia": tiempo_str
                 })
             st.dataframe(pd.DataFrame(tabla_vivos), hide_index=True, use_container_width=True)
         else:
