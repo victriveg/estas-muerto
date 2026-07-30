@@ -45,12 +45,16 @@ if not current_user:
 
     with tab_login:
         st.subheader("🔑 Iniciar Sesión")
-        email_in = st.text_input("Correo Electrónico", key="login_email")
-        pass_in = st.text_input("Contraseña", type="password", key="login_pass")
+        with st.form("form_login", clear_on_submit=False):
+            email_in = st.text_input("Correo Electrónico", key="login_email")
+            pass_in = st.text_input("Contraseña", type="password", key="login_pass")
+            btn_login = st.form_submit_button("🚀 Entrar", type="primary", use_container_width=True)
 
-        if st.button("🚀 Entrar", type="primary", use_container_width=True, key="btn_login"):
-            if email_in and pass_in:
-                u = auth.authenticate_user(db, email_in, pass_in)
+        if btn_login:
+            e_clean = email_in.strip() if email_in else ""
+            p_clean = pass_in.strip() if pass_in else ""
+            if e_clean and p_clean:
+                u = auth.authenticate_user(db, e_clean, p_clean)
                 if u:
                     st.session_state["user_id"] = u.id
                     st.success(f"¡Bienvenido/a de nuevo, **{u.nombre}**!")
@@ -63,12 +67,15 @@ if not current_user:
         st.markdown("---")
         with st.expander("🔑 ¿Olvidaste tu contraseña?", expanded=False):
             st.caption("Solicita un código de recuperación de 6 dígitos que enviaremos a tu correo electrónico.")
-            reset_email = st.text_input("Ingresa tu Correo Electrónico", key="reset_email_input")
+            with st.form("form_request_reset", clear_on_submit=False):
+                reset_email = st.text_input("Ingresa tu Correo Electrónico", key="reset_email_input")
+                btn_send_reset = st.form_submit_button("📩 Enviar Código de Recuperación", use_container_width=True)
             
-            if st.button("📩 Enviar Código de Recuperación", use_container_width=True, key="btn_send_reset_code"):
-                if reset_email:
+            if btn_send_reset:
+                re_clean = reset_email.strip() if reset_email else ""
+                if re_clean:
                     try:
-                        token, u_reset = auth.request_password_reset(db, reset_email)
+                        token, u_reset = auth.request_password_reset(db, re_clean)
                         email_service.send_password_reset_email(u_reset.email, u_reset.nombre, token)
                         st.success(f"📩 Código de 6 dígitos enviado a **{u_reset.email}**. Revisa tu bandeja de entrada.")
                     except Exception as e:
@@ -78,14 +85,19 @@ if not current_user:
 
             st.markdown("---")
             st.caption("Ingresa el código OTP recibido para cambiar tu contraseña:")
-            col_r1, col_r2 = st.columns(2)
-            reset_code_in = col_r1.text_input("Código de 6 dígitos", key="reset_code_in")
-            new_pass_in = col_r2.text_input("Nueva Contraseña", type="password", key="new_pass_in")
+            with st.form("form_confirm_reset", clear_on_submit=False):
+                col_r1, col_r2 = st.columns(2)
+                reset_code_in = col_r1.text_input("Código de 6 dígitos", key="reset_code_in")
+                new_pass_in = col_r2.text_input("Nueva Contraseña", type="password", key="new_pass_in")
+                btn_confirm_reset = st.form_submit_button("🔒 Restablecer Contraseña", type="primary", use_container_width=True)
 
-            if st.button("🔒 Restablecer Contraseña", type="primary", use_container_width=True, key="btn_confirm_reset_pass"):
-                if reset_email and reset_code_in and new_pass_in:
+            if btn_confirm_reset:
+                re_clean = reset_email.strip() if reset_email else ""
+                rc_clean = reset_code_in.strip() if reset_code_in else ""
+                np_clean = new_pass_in.strip() if new_pass_in else ""
+                if re_clean and rc_clean and np_clean:
                     try:
-                        auth.reset_password_with_token(db, reset_email, reset_code_in, new_pass_in)
+                        auth.reset_password_with_token(db, re_clean, rc_clean, np_clean)
                         st.success("🎉 ¡Contraseña restablecida con éxito! Ya puedes iniciar sesión con tu nueva clave.")
                     except Exception as e:
                         st.error(f"Error al restablecer: {e}")
@@ -94,27 +106,33 @@ if not current_user:
 
     with tab_register:
         st.subheader("📝 Crear Cuenta")
-        name_reg = st.text_input("Tu Nombre / Apodo", key="reg_name")
-        email_reg = st.text_input("Correo Electrónico", key="reg_email")
-        pass_reg = st.text_input("Contraseña", type="password", key="reg_pass")
-        pass_reg_conf = st.text_input("Confirmar Contraseña", type="password", key="reg_pass_conf")
+        with st.form("form_register", clear_on_submit=False):
+            name_reg = st.text_input("Tu Nombre / Apodo", key="reg_name")
+            email_reg = st.text_input("Correo Electrónico", key="reg_email")
+            pass_reg = st.text_input("Contraseña", type="password", key="reg_pass")
+            pass_reg_conf = st.text_input("Confirmar Contraseña", type="password", key="reg_pass_conf")
+            btn_reg = st.form_submit_button("➕ Crear Cuenta", type="primary", use_container_width=True)
 
-        if st.button("➕ Crear Cuenta", type="primary", use_container_width=True, key="btn_reg"):
-            if name_reg and email_reg and pass_reg:
-                if pass_reg != pass_reg_conf:
-                    st.error("❌ Las contraseñas no coinciden.")
-                elif len(pass_reg) < 4:
-                    st.error("❌ La contraseña debe tener al menos 4 caracteres.")
-                else:
-                    try:
-                        u = auth.register_user(db, name_reg, email_reg, pass_reg)
-                        st.session_state["user_id"] = u.id
-                        st.success(f"¡Cuenta creada con éxito! Bienvenido/a, **{u.nombre}**.")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Error al registrar: {e}")
-            else:
+        if btn_reg:
+            name_clean = name_reg.strip() if name_reg else ""
+            email_clean = email_reg.strip() if email_reg else ""
+            pass_clean = pass_reg.strip() if pass_reg else ""
+            conf_clean = pass_reg_conf.strip() if pass_reg_conf else ""
+
+            if not (name_clean and email_clean and pass_clean and conf_clean):
                 st.warning("Por favor completa todos los campos.")
+            elif pass_clean != conf_clean:
+                st.error("❌ Las contraseñas no coinciden.")
+            elif len(pass_clean) < 4:
+                st.error("❌ La contraseña debe tener al menos 4 caracteres.")
+            else:
+                try:
+                    u = auth.register_user(db, name_clean, email_clean, pass_clean)
+                    st.session_state["user_id"] = u.id
+                    st.success(f"¡Cuenta creada con éxito! Bienvenido/a, **{u.nombre}**.")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error al registrar: {e}")
 
     db.close()
     st.stop()  # Detener ejecución si no hay usuario autenticado
