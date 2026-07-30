@@ -369,12 +369,12 @@ if player_active and player_active.estado == "vivo" and room_actual.estado == "e
 # INTERFAZ PRINCIPAL EN PESTAÑAS
 # ---------------------------------------------------------
 if is_host:
-    tab_estado, tab_gestion, tab_setup, tab_rotacion, tab_perfil = st.tabs([
-        "🏆 Estado", "🔪 Baja", "⚙️ Setup", "🔄 Rotación/Cambio", "👤 Mi Perfil"
+    tab_estado, tab_gestion, tab_setup, tab_perfil = st.tabs([
+        "🏆 Estado", "🔪 Baja & Rotación", "⚙️ Setup", "👤 Mi Perfil"
     ])
 else:
-    tab_estado, tab_gestion, tab_rotacion, tab_perfil = st.tabs([
-        "🏆 Estado", "🔪 Baja", "🔄 Rotación/Cambio", "👤 Mi Perfil"
+    tab_estado, tab_gestion, tab_perfil = st.tabs([
+        "🏆 Estado", "🔪 Baja & Rotación", "👤 Mi Perfil"
     ])
     tab_setup = None
 
@@ -456,12 +456,18 @@ with tab_estado:
         st.caption("Aún no se ha registrado ninguna baja en esta sala.")
 
 # =========================================================
-# PESTAÑA 2: REGISTRAR / CONFIRMAR BAJA
+# PESTAÑA 2: BAJA & ROTACIÓN
 # =========================================================
 with tab_gestion:
+    # Mensajes de feedback persistentes
+    if "msg_feedback_baja" in st.session_state:
+        st.success(st.session_state.pop("msg_feedback_baja"))
+    if "msg_feedback_arma" in st.session_state:
+        st.success(st.session_state.pop("msg_feedback_arma"))
+
     st.subheader("☠️ Registro y Confirmación de Asesinatos")
 
-    # 1. NOTIFICACIÓN ANÓNIMA PARA LA VÍCTIMA
+    # 1. NOTIFICACIÓN ANÓNIMA PARA LA VÍCTIMA (CONFIRMAR MI MUERTE CON POPUP)
     if player_active:
         claims_pendientes = db.query(KillClaim).filter_by(
             room_id=room_id, victima_id=player_active.id, estado="pendiente"
@@ -475,20 +481,52 @@ with tab_gestion:
                 *(Por privacidad del juego, no se muestra la identidad del asesino)*.
                 """)
                 c1, c2 = st.columns(2)
-                if c1.button("☠️ Confirmar mi Muerte", type="primary", key=f"btn_confirm_death_{claim.id}", use_container_width=True):
-                    res = game_logic.confirmar_baja_claim(db, claim.id)
-                    st.success("Has sido marcado/a como eliminado/a.")
-                    if res.get("partida_finalizada"):
-                        st.balloons()
-                        st.success(f"🏆 ¡PARTIDA FINALIZADA! Ganador/a: **{res['ganador'].user.nombre}**")
-                    st.rerun()
+                if c1.button("☠️ Confirmar mi Muerte", type="primary", key=f"btn_confirm_death_trg_{claim.id}", use_container_width=True):
+                    st.session_state[f"dialog_confirm_death_{claim.id}"] = True
+
                 if c2.button("❌ Rechazar (Fue un error)", key=f"btn_reject_death_{claim.id}", use_container_width=True):
                     game_logic.rechazar_baja_claim(db, claim.id)
                     st.info("Solicitud rechazada.")
                     st.rerun()
+
+                # MODAL CONFIRMAR MI MUERTE
+                if st.session_state.get(f"dialog_confirm_death_{claim.id}"):
+                    if hasattr(st, "dialog"):
+                        @st.dialog("❓ Confirmar Tu Eliminación")
+                        def modal_confirmar_muerte():
+                            st.write("¿Estás seguro/a de que deseas confirmar tu eliminación?")
+                            st.warning("⚠️ Quedarás eliminado/a de esta partida y tu asesino avanzará al siguiente objetivo.")
+                            mc1, mc2 = st.columns(2)
+                            if mc1.button("✅ Sí, Confirmar mi Muerte", type="primary", use_container_width=True, key=f"dlg_yes_death_{claim.id}"):
+                                st.session_state[f"dialog_confirm_death_{claim.id}"] = False
+                                res = game_logic.confirmar_baja_claim(db, claim.id)
+                                msg = "Has sido marcado/a como eliminado/a de la partida."
+                                if res.get("partida_finalizada"):
+                                    msg += f" 🏆 ¡PARTIDA FINALIZADA! Ganador/a: **{res['ganador'].user.nombre}**"
+                                st.session_state["msg_feedback_baja"] = msg
+                                st.rerun()
+                            if mc2.button("❌ Cancelar", use_container_width=True, key=f"dlg_no_death_{claim.id}"):
+                                st.session_state[f"dialog_confirm_death_{claim.id}"] = False
+                                st.rerun()
+                        modal_confirmar_muerte()
+                    else:
+                        with st.container(border=True):
+                            st.subheader("❓ Confirmar Tu Eliminación")
+                            st.write("¿Estás seguro/a de que deseas confirmar tu eliminación?")
+                            st.warning("⚠️ Quedarás eliminado/a de esta partida.")
+                            mc1, mc2 = st.columns(2)
+                            if mc1.button("✅ Sí, Confirmar mi Muerte", type="primary", use_container_width=True, key=f"fb_yes_death_{claim.id}"):
+                                st.session_state[f"dialog_confirm_death_{claim.id}"] = False
+                                res = game_logic.confirmar_baja_claim(db, claim.id)
+                                st.session_state["msg_feedback_baja"] = "Has sido marcado/a como eliminado/a."
+                                st.rerun()
+                            if mc2.button("❌ Cancelar", use_container_width=True, key=f"fb_no_death_{claim.id}"):
+                                st.session_state[f"dialog_confirm_death_{claim.id}"] = False
+                                st.rerun()
+
             st.markdown("---")
 
-    # 2. OPCIÓN JUGADOR: MARCAR ASESINATO A SU VÍCTIMA
+    # 2. OPCIÓN JUGADOR: MARCAR ASESINATO A SU VÍCTIMA (CON POPUP)
     if player_active and player_active.estado == "vivo":
         asig_mi = db.query(Assignment).filter_by(room_id=room_id, asesino_id=player_active.id).first()
         if asig_mi:
@@ -503,17 +541,47 @@ with tab_gestion:
             if claim_existente:
                 st.warning("⏳ **Solicitud enviada.** Esperando que tu víctima confirme la baja en su pantalla.")
             else:
-                if st.button("🔴 He eliminado a mi víctima", type="primary", use_container_width=True, key="btn_claim_kill"):
-                    game_logic.solicitar_baja(db, room_id, player_active.id)
-                    st.success("📩 Solicitud enviada. Le ha aparecido una notificación a tu víctima para que la confirme.")
-                    st.rerun()
+                if st.button("🔴 He eliminado a mi víctima", type="primary", use_container_width=True, key="btn_claim_kill_trigger"):
+                    st.session_state["dialog_claim_kill"] = True
+
+                # MODAL MARCAR ASESINATO
+                if st.session_state.get("dialog_claim_kill"):
+                    if hasattr(st, "dialog"):
+                        @st.dialog("❓ Confirmar Notificación de Asesinato")
+                        def modal_marcar_asesinato():
+                            st.write(f"¿Estás seguro/a de que has eliminado a **{victima_p.user.nombre}** con el objeto **{asig_mi.objeto}**?")
+                            st.warning("⚠️ Se enviará una solicitud inmediata a tu víctima para que la confirme en su pantalla.")
+                            kc1, kc2 = st.columns(2)
+                            if kc1.button("✅ Sí, Notificar Asesinato", type="primary", use_container_width=True, key="dlg_yes_claim"):
+                                st.session_state["dialog_claim_kill"] = False
+                                game_logic.solicitar_baja(db, room_id, player_active.id)
+                                st.session_state["msg_feedback_baja"] = "📩 Solicitud enviada con éxito. Le ha aparecido una notificación a tu víctima para que la confirme."
+                                st.rerun()
+                            if kc2.button("❌ Cancelar", use_container_width=True, key="dlg_no_claim"):
+                                st.session_state["dialog_claim_kill"] = False
+                                st.rerun()
+                        modal_marcar_asesinato()
+                    else:
+                        with st.container(border=True):
+                            st.subheader("❓ Confirmar Notificación de Asesinato")
+                            st.write(f"¿Estás seguro/a de que has eliminado a **{victima_p.user.nombre}**?")
+                            kc1, kc2 = st.columns(2)
+                            if kc1.button("✅ Sí, Notificar Asesinato", type="primary", use_container_width=True, key="fb_yes_claim"):
+                                st.session_state["dialog_claim_kill"] = False
+                                game_logic.solicitar_baja(db, room_id, player_active.id)
+                                st.session_state["msg_feedback_baja"] = "📩 Solicitud enviada."
+                                st.rerun()
+                            if kc2.button("❌ Cancelar", use_container_width=True, key="fb_no_claim"):
+                                st.session_state["dialog_claim_kill"] = False
+                                st.rerun()
+
             st.markdown("---")
         elif room_actual.estado == "espera":
             st.info("⏳ La partida aún no ha comenzado. Espera a que el Host inicie el juego para recibir tu objetivo.")
     elif player_active and player_active.estado == "muerto":
         st.error("☠️ Has sido eliminado/a de esta partida. Puedes consultar el ranking y el historial de bajas.")
 
-    # 3. OPCIÓN ADMINISTRADOR (HOST): REGISTRO DIRECTO DE ASESINATO
+    # 3. OPCIÓN ADMINISTRADOR (HOST): REGISTRO DIRECTO DE ASESINATO (CON POPUP)
     if is_host:
         st.subheader("👑 Registro Directo de Asesinato (Solo Administrador / Host)")
         st.caption("Como Host de la sala, puedes confirmar directamente la baja de cualquier jugador sin esperar la confirmación de la víctima.")
@@ -533,14 +601,197 @@ with tab_gestion:
                 victima_host = db.query(Player).get(asig_host.victima_id)
                 st.write(f"Víctima actual: **{victima_host.user.nombre}** | Arma: **{asig_host.objeto}**")
 
-                if st.button("⚡ Confirmar Asesinato Directo (Host)", type="primary", use_container_width=True, key="btn_host_direct_kill"):
-                    res = game_logic.registrar_baja(db, room_id, asesino_player_id)
-                    st.success(f"🎉 ¡Baja registrada! **{victima_host.user.nombre}** ha sido eliminado/a.")
+                if st.button("⚡ Confirmar Asesinato Directo (Host)", type="primary", use_container_width=True, key="btn_host_direct_kill_trigger"):
+                    st.session_state["dialog_host_direct_kill"] = True
 
-                    if res["partida_finalizada"]:
-                        st.balloons()
-                        st.success(f"🏆 ¡PARTIDA FINALIZADA! Ganador/a: **{res['ganador'].user.nombre}**")
+                if st.session_state.get("dialog_host_direct_kill"):
+                    if hasattr(st, "dialog"):
+                        @st.dialog("❓ Confirmar Asesinato Directo (Host)")
+                        def modal_host_direct():
+                            st.write(f"¿Estás seguro/a de registrar directamente la eliminación de **{victima_host.user.nombre}** por parte de **{asig_host.asesino.user.nombre}**?")
+                            st.warning("⚠️ Esta acción es irreversible y actualizará la asignación inmediatamente.")
+                            hc1, hc2 = st.columns(2)
+                            if hc1.button("✅ Sí, Registrar Baja Directa", type="primary", use_container_width=True, key="dlg_yes_host_kill"):
+                                st.session_state["dialog_host_direct_kill"] = False
+                                res = game_logic.registrar_baja(db, room_id, asesino_player_id)
+                                msg = f"🎉 ¡Baja registrada! **{victima_host.user.nombre}** ha sido eliminado/a."
+                                if res["partida_finalizada"]:
+                                    msg += f" 🏆 ¡PARTIDA FINALIZADA! Ganador/a: **{res['ganador'].user.nombre}**"
+                                st.session_state["msg_feedback_baja"] = msg
+                                st.rerun()
+                            if hc2.button("❌ Cancelar", use_container_width=True, key="dlg_no_host_kill"):
+                                st.session_state["dialog_host_direct_kill"] = False
+                                st.rerun()
+                        modal_host_direct()
+                    else:
+                        with st.container(border=True):
+                            st.subheader("❓ Confirmar Asesinato Directo (Host)")
+                            hc1, hc2 = st.columns(2)
+                            if hc1.button("✅ Sí, Registrar Baja Directa", type="primary", use_container_width=True, key="fb_yes_host_kill"):
+                                st.session_state["dialog_host_direct_kill"] = False
+                                res = game_logic.registrar_baja(db, room_id, asesino_player_id)
+                                st.session_state["msg_feedback_baja"] = f"🎉 ¡Baja registrada! **{victima_host.user.nombre}** ha sido eliminado/a."
+                                st.rerun()
+                            if hc2.button("❌ Cancelar", use_container_width=True, key="fb_no_host_kill"):
+                                st.session_state["dialog_host_direct_kill"] = False
+                                st.rerun()
+
+    # =========================================================
+    # SECCIÓN: CAMBIO INDIVIDUAL DE ARMA
+    # =========================================================
+    st.markdown("---")
+    st.subheader("🎲 Cambio Individual de Arma")
+
+    # 1. CAMBIO DE ARMA PROPIA PARA JUGADORES
+    if player_active and player_active.estado == "vivo":
+        if player_active.cambios_restantes > 0:
+            st.info(f"🔄 **Cambios restantes de arma:** {player_active.cambios_restantes}")
+            
+            if st.button("🎲 Cambiar Mi Arma", type="primary", use_container_width=True, key="btn_change_my_weapon"):
+                st.session_state["confirmar_cambio_arma_dialog"] = True
+
+            if st.session_state.get("confirmar_cambio_arma_dialog"):
+                if hasattr(st, "dialog"):
+                    @st.dialog("❓ Confirmar Cambio de Arma")
+                    def modal_confirmar_arma():
+                        st.write("¿Estás seguro/a de que deseas cambiar tu arma actual por una nueva?")
+                        st.warning("⚠️ Esta acción consumirá 1 de tus 2 cambios disponibles en esta partida.")
+                        col_c1, col_c2 = st.columns(2)
+                        if col_c1.button("✅ Sí, Cambiar Arma", type="primary", use_container_width=True, key="btn_confirm_dialog"):
+                            st.session_state["confirmar_cambio_arma_dialog"] = False
+                            try:
+                                nuevo_objeto, cambios_left = game_logic.ejecutar_cambio_arma(db, room_id, player_active.id)
+                                asig_obj = db.query(Assignment).filter_by(room_id=room_id, asesino_id=player_active.id).first()
+                                victima_obj = db.query(Player).get(asig_obj.victima_id) if asig_obj else None
+
+                                email_service.send_item_change_email(
+                                    to_email=current_user.email,
+                                    nombre_jugador=current_user.nombre,
+                                    nuevo_objeto=nuevo_objeto,
+                                    cambios_restantes=cambios_left,
+                                    nombre_victima=victima_obj.user.nombre if victima_obj else None
+                                )
+
+                                st.session_state["msg_feedback_arma"] = f"🎉 ¡Arma cambiada con éxito! Tu nueva arma secreta es **{nuevo_objeto}**. Te quedan {cambios_left} cambios de arma."
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Error al cambiar arma: {e}")
+
+                        if col_c2.button("❌ Cancelar", use_container_width=True, key="btn_cancel_dialog"):
+                            st.session_state["confirmar_cambio_arma_dialog"] = False
+                            st.rerun()
+                    modal_confirmar_arma()
+                else:
+                    with st.container(border=True):
+                        st.subheader("❓ Confirmar Cambio de Arma")
+                        st.write("¿Estás seguro/a de que deseas cambiar tu arma actual por una nueva?")
+                        st.warning("⚠️ Consumirá 1 de tus 2 cambios disponibles.")
+                        col_c1, col_c2 = st.columns(2)
+                        if col_c1.button("✅ Sí, Cambiar Arma", type="primary", use_container_width=True, key="btn_confirm_fallback"):
+                            st.session_state["confirmar_cambio_arma_dialog"] = False
+                            try:
+                                nuevo_objeto, cambios_left = game_logic.ejecutar_cambio_arma(db, room_id, player_active.id)
+                                asig_obj = db.query(Assignment).filter_by(room_id=room_id, asesino_id=player_active.id).first()
+                                victima_obj = db.query(Player).get(asig_obj.victima_id) if asig_obj else None
+
+                                email_service.send_item_change_email(
+                                    to_email=current_user.email,
+                                    nombre_jugador=current_user.nombre,
+                                    nuevo_objeto=nuevo_objeto,
+                                    cambios_restantes=cambios_left,
+                                    nombre_victima=victima_obj.user.nombre if victima_obj else None
+                                )
+
+                                st.session_state["msg_feedback_arma"] = f"🎉 ¡Arma cambiada con éxito! Tu nueva arma secreta es **{nuevo_objeto}**. Te quedan {cambios_left} cambios de arma."
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Error al cambiar arma: {e}")
+
+                        if col_c2.button("❌ Cancelar", use_container_width=True, key="btn_cancel_fallback"):
+                            st.session_state["confirmar_cambio_arma_dialog"] = False
+                            st.rerun()
+        else:
+            st.warning("⚠️ Has agotado tus 2 cambios individuales de arma en esta partida.")
+    elif player_active and player_active.estado == "muerto":
+        st.caption("☠️ Estás eliminado/a de esta sala.")
+
+    # 2. CAMBIO DE ARMA PARA OTRO JUGADOR (EXCLUSIVO DEL HOST)
+    if is_host:
+        st.markdown("---")
+        st.subheader("👑 Cambio de Arma para Jugadores (Solo Host)")
+        all_vivos = db.query(Player).filter(
+            (Player.room_id == room_id) & (Player.estado == "vivo")
+        ).all()
+
+        if all_vivos:
+            dict_cambios = {f"{p.user.nombre} (Cambios restantes: {p.cambios_restantes})": p.id for p in all_vivos}
+            player_sel_key = st.selectbox("Seleccionar jugador a quien cambiar el arma:", list(dict_cambios.keys()), key="host_weapon_change_sel")
+            player_sel_id = dict_cambios[player_sel_key]
+
+            if st.button("🎲 Ejecutar Cambio a este Jugador (Host)", use_container_width=True, key="btn_host_change_player_weapon"):
+                try:
+                    nuevo_objeto, cambios_left = game_logic.ejecutar_cambio_arma(db, room_id, player_sel_id, es_host=True)
+                    player_obj = db.query(Player).get(player_sel_id)
+                    asig_obj = db.query(Assignment).filter_by(room_id=room_id, asesino_id=player_sel_id).first()
+                    victima_obj = db.query(Player).get(asig_obj.victima_id) if asig_obj else None
+
+                    exito_email = email_service.send_item_change_email(
+                        to_email=player_obj.user.email,
+                        nombre_jugador=player_obj.user.nombre,
+                        nuevo_objeto=nuevo_objeto,
+                        cambios_restantes=cambios_left,
+                        nombre_victima=victima_obj.user.nombre if victima_obj else None
+                    )
+
+                    st.success(f"✅ ¡Cambio realizado por el Host! La nueva arma de **{player_obj.user.nombre}** es **{nuevo_objeto}**.")
+                    if exito_email:
+                        st.info(f"📩 Correo enviado a {player_obj.user.email}.")
                     st.rerun()
+                except Exception as e:
+                    st.error(f"Error al ejecutar el cambio: {e}")
+        else:
+            st.caption("No hay jugadores vivos actualmente en esta sala.")
+
+    # =========================================================
+    # SECCIÓN: ROTACIÓN PERIÓDICA GENERAL
+    # =========================================================
+    st.markdown("---")
+    st.subheader("🔄 Rotación Periódica General")
+    st.info(f"⏱️ **Próxima rotación automática programada:** `{proxima_rot_str}` (Cada 3 días a las 8:00 AM).")
+
+    if is_host:
+        if st.button("🔀 Ejecutar Rotación Manual de Sala", type="primary", use_container_width=True):
+            try:
+                asignaciones = game_logic.generar_ciclo_cerrado(db, room_id)
+                st.success("✅ ¡Rotación realizada correctamente!")
+
+                vivos_nombres = [p.user.nombre for p in db.query(Player).filter_by(room_id=room_id, estado="vivo").all()]
+                progress = st.progress(0)
+                for idx, asig in enumerate(asignaciones):
+                    if idx > 0:
+                        time.sleep(1)
+                    asesino_p = db.query(Player).get(asig.asesino_id)
+                    victima_p = db.query(Player).get(asig.victima_id)
+
+                    html_msg = email_service.build_assignment_email_html(
+                        nombre_asesino=asesino_p.user.nombre,
+                        nombre_victima=victima_p.user.nombre,
+                        objeto=asig.objeto,
+                        vivos_lista=vivos_nombres,
+                        historial_bajas=[],
+                        modo_ciego=room_actual.modo_ciego
+                    )
+                    email_service.send_email(
+                        to_email=asesino_p.user.email,
+                        subject="🔄 [ROTACIÓN DE OBJETIVOS] Tu nueva víctima y arma - Estás Muerto",
+                        body_html=html_msg
+                    )
+                    progress.progress((idx + 1) / len(asignaciones))
+
+                st.success("📩 Notificaciones de rotación enviadas a todos los supervivientes.")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Error al rotar sala: {e}")
 
 # =========================================================
 # PESTAÑA 3: CONFIGURACIÓN / SETUP
@@ -713,163 +964,7 @@ if is_host and tab_setup:
         else:
             st.warning(f"🔒 El inicio de la partida requiere permisos de Host. Contacta a **{host_nombre}** para iniciar la partida.")
 
-# =========================================================
-# PESTAÑA 4: ROTACIÓN / CAMBIO DE ARMA
-# =========================================================
-with tab_rotacion:
-    st.subheader("🎲 Cambio Individual de Arma")
 
-    # Feedback persistente tras cambio de arma
-    if "msg_feedback_arma" in st.session_state:
-        st.success(st.session_state.pop("msg_feedback_arma"))
-
-    # 1. CAMBIO DE ARMA PROPIA PARA JUGADORES
-    if player_active and player_active.estado == "vivo":
-        if player_active.cambios_restantes > 0:
-            st.info(f"🔄 **Cambios restantes de arma:** {player_active.cambios_restantes}")
-            
-            if st.button("🎲 Cambiar Mi Arma", type="primary", use_container_width=True, key="btn_change_my_weapon"):
-                st.session_state["confirmar_cambio_arma_dialog"] = True
-
-            if st.session_state.get("confirmar_cambio_arma_dialog"):
-                if hasattr(st, "dialog"):
-                    @st.dialog("❓ Confirmar Cambio de Arma")
-                    def modal_confirmar():
-                        st.write("¿Estás seguro/a de que deseas cambiar tu arma actual por una nueva?")
-                        st.warning("⚠️ Esta acción consumirá 1 de tus 2 cambios disponibles en esta partida.")
-                        col_c1, col_c2 = st.columns(2)
-                        if col_c1.button("✅ Sí, Cambiar Arma", type="primary", use_container_width=True, key="btn_confirm_dialog"):
-                            st.session_state["confirmar_cambio_arma_dialog"] = False
-                            try:
-                                nuevo_objeto, cambios_left = game_logic.ejecutar_cambio_arma(db, room_id, player_active.id)
-                                asig_obj = db.query(Assignment).filter_by(room_id=room_id, asesino_id=player_active.id).first()
-                                victima_obj = db.query(Player).get(asig_obj.victima_id) if asig_obj else None
-
-                                email_service.send_item_change_email(
-                                    to_email=current_user.email,
-                                    nombre_jugador=current_user.nombre,
-                                    nuevo_objeto=nuevo_objeto,
-                                    cambios_restantes=cambios_left,
-                                    nombre_victima=victima_obj.user.nombre if victima_obj else None
-                                )
-
-                                st.session_state["msg_feedback_arma"] = f"🎉 ¡Arma cambiada con éxito! Tu nueva arma secreta es **{nuevo_objeto}**. Te quedan {cambios_left} cambios de arma."
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Error al cambiar arma: {e}")
-
-                        if col_c2.button("❌ Cancelar", use_container_width=True, key="btn_cancel_dialog"):
-                            st.session_state["confirmar_cambio_arma_dialog"] = False
-                            st.rerun()
-                    modal_confirmar()
-                else:
-                    with st.container(border=True):
-                        st.subheader("❓ Confirmar Cambio de Arma")
-                        st.write("¿Estás seguro/a de que deseas cambiar tu arma actual por una nueva?")
-                        st.warning("⚠️ Consumirá 1 de tus 2 cambios disponibles.")
-                        col_c1, col_c2 = st.columns(2)
-                        if col_c1.button("✅ Sí, Cambiar Arma", type="primary", use_container_width=True, key="btn_confirm_fallback"):
-                            st.session_state["confirmar_cambio_arma_dialog"] = False
-                            try:
-                                nuevo_objeto, cambios_left = game_logic.ejecutar_cambio_arma(db, room_id, player_active.id)
-                                asig_obj = db.query(Assignment).filter_by(room_id=room_id, asesino_id=player_active.id).first()
-                                victima_obj = db.query(Player).get(asig_obj.victima_id) if asig_obj else None
-
-                                email_service.send_item_change_email(
-                                    to_email=current_user.email,
-                                    nombre_jugador=current_user.nombre,
-                                    nuevo_objeto=nuevo_objeto,
-                                    cambios_restantes=cambios_left,
-                                    nombre_victima=victima_obj.user.nombre if victima_obj else None
-                                )
-
-                                st.session_state["msg_feedback_arma"] = f"🎉 ¡Arma cambiada con éxito! Tu nueva arma secreta es **{nuevo_objeto}**. Te quedan {cambios_left} cambios de arma."
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Error al cambiar arma: {e}")
-
-                        if col_c2.button("❌ Cancelar", use_container_width=True, key="btn_cancel_fallback"):
-                            st.session_state["confirmar_cambio_arma_dialog"] = False
-                            st.rerun()
-        else:
-            st.warning("⚠️ Has agotado tus 2 cambios individuales de arma en esta partida.")
-    elif player_active and player_active.estado == "muerto":
-        st.caption("☠️ Estás eliminado/a de esta sala.")
-
-    # 2. CAMBIO DE ARMA PARA OTRO JUGADOR (EXCLUSIVO DEL HOST)
-    if is_host:
-        st.markdown("---")
-        st.subheader("👑 Cambio de Arma para Jugadores (Solo Host)")
-        all_vivos = db.query(Player).filter(
-            (Player.room_id == room_id) & (Player.estado == "vivo")
-        ).all()
-
-        if all_vivos:
-            dict_cambios = {f"{p.user.nombre} (Cambios restantes: {p.cambios_restantes})": p.id for p in all_vivos}
-            player_sel_key = st.selectbox("Seleccionar jugador a quien cambiar el arma:", list(dict_cambios.keys()), key="host_weapon_change_sel")
-            player_sel_id = dict_cambios[player_sel_key]
-
-            if st.button("🎲 Ejecutar Cambio a este Jugador (Host)", use_container_width=True, key="btn_host_change_player_weapon"):
-                try:
-                    nuevo_objeto, cambios_left = game_logic.ejecutar_cambio_arma(db, room_id, player_sel_id, es_host=True)
-                    player_obj = db.query(Player).get(player_sel_id)
-                    asig_obj = db.query(Assignment).filter_by(room_id=room_id, asesino_id=player_sel_id).first()
-                    victima_obj = db.query(Player).get(asig_obj.victima_id) if asig_obj else None
-
-                    exito_email = email_service.send_item_change_email(
-                        to_email=player_obj.user.email,
-                        nombre_jugador=player_obj.user.nombre,
-                        nuevo_objeto=nuevo_objeto,
-                        cambios_restantes=cambios_left,
-                        nombre_victima=victima_obj.user.nombre if victima_obj else None
-                    )
-
-                    st.success(f"✅ ¡Cambio realizado por el Host! La nueva arma de **{player_obj.user.nombre}** es **{nuevo_objeto}**.")
-                    if exito_email:
-                        st.info(f"📩 Correo enviado a {player_obj.user.email}.")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Error al ejecutar el cambio: {e}")
-        else:
-            st.caption("No hay jugadores vivos actualmente en esta sala.")
-
-    st.markdown("---")
-    st.subheader("🔄 Rotación Periódica General")
-    st.info(f"⏱️ **Próxima rotación automática programada:** `{proxima_rot_str}` (Cada 3 días a las 8:00 AM).")
-
-    if is_host:
-        if st.button("🔀 Ejecutar Rotación Manual de Sala", type="primary", use_container_width=True):
-            try:
-                asignaciones = game_logic.generar_ciclo_cerrado(db, room_id)
-                st.success("✅ ¡Rotación realizada correctamente!")
-
-                vivos_nombres = [p.user.nombre for p in db.query(Player).filter_by(room_id=room_id, estado="vivo").all()]
-                progress = st.progress(0)
-                for idx, asig in enumerate(asignaciones):
-                    if idx > 0:
-                        time.sleep(1)
-                    asesino_p = db.query(Player).get(asig.asesino_id)
-                    victima_p = db.query(Player).get(asig.victima_id)
-
-                    html_msg = email_service.build_assignment_email_html(
-                        nombre_asesino=asesino_p.user.nombre,
-                        nombre_victima=victima_p.user.nombre,
-                        objeto=asig.objeto,
-                        vivos_lista=vivos_nombres,
-                        historial_bajas=[],
-                        modo_ciego=room_actual.modo_ciego
-                    )
-                    email_service.send_email(
-                        to_email=asesino_p.user.email,
-                        subject="🔄 [ROTACIÓN DE OBJETIVOS] Tu nueva víctima y arma - Estás Muerto",
-                        body_html=html_msg
-                    )
-                    progress.progress((idx + 1) / len(asignaciones))
-
-                st.success("📩 Notificaciones de rotación enviadas a todos los supervivientes.")
-                st.rerun()
-            except Exception as e:
-                st.error(f"Error al rotar sala: {e}")
 
 # =========================================================
 # PESTAÑA 5: PERFIL DE USUARIO Y INSIGNIAS (PLAYER BADGES)
