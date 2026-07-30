@@ -76,6 +76,33 @@ components.html("""
     purgeCloudElements();
     setInterval(purgeCloudElements, 100);
 
+    // Persistencia de Sesión con localStorage para evitar cierres involuntarios de sesión
+    function syncPersistentSession() {
+        try {
+            const docs = [window.document, window.parent.document, window.top.document];
+            docs.forEach(d => {
+                if (!d || !d.location) return;
+                const urlParams = new URLSearchParams(d.location.search);
+                const uParam = urlParams.get('u');
+                const logoutParam = urlParams.get('logout');
+                
+                if (logoutParam === 'true') {
+                    localStorage.removeItem('em_persistent_user_id');
+                } else if (uParam && uParam !== 'null') {
+                    localStorage.setItem('em_persistent_user_id', uParam);
+                } else {
+                    const savedUser = localStorage.getItem('em_persistent_user_id');
+                    if (savedUser && savedUser !== 'null') {
+                        urlParams.set('u', savedUser);
+                        const newUrl = d.location.pathname + '?' + urlParams.toString();
+                        d.location.replace(newUrl);
+                    }
+                }
+            });
+        } catch(e){}
+    }
+    syncPersistentSession();
+
     // Auto-refresco automático en segundo plano cada 5 segundos de la pantalla
     setInterval(function() {
         try {
@@ -162,6 +189,19 @@ if url_pin:
 # AUTENTICACIÓN Y GESTIÓN DE SESIÓN DE USUARIO
 # ---------------------------------------------------------
 current_user_id = st.session_state.get("user_id")
+
+# Intentar recuperar sesión persistente desde parámetro URL si no hay sesión en memoria
+if not current_user_id and "u" in url_params:
+    param_u = url_params.get("u")
+    if param_u and str(param_u).isdigit():
+        try:
+            u_cand = db.query(User).get(int(param_u))
+            if u_cand:
+                st.session_state["user_id"] = u_cand.id
+                current_user_id = u_cand.id
+        except Exception:
+            pass
+
 current_user = db.query(User).get(current_user_id) if current_user_id else None
 
 if not current_user:
@@ -183,6 +223,9 @@ if not current_user:
                 u = auth.authenticate_user(db, e_clean, p_clean)
                 if u:
                     st.session_state["user_id"] = u.id
+                    st.query_params["u"] = str(u.id)
+                    if "logout" in st.query_params:
+                        st.query_params.pop("logout", None)
                     st.success(f"¡Bienvenido/a de nuevo, **{u.nombre}**!")
                     st.rerun()
                 else:
@@ -255,6 +298,9 @@ if not current_user:
                 try:
                     u = auth.register_user(db, name_clean, email_clean, pass_clean)
                     st.session_state["user_id"] = u.id
+                    st.query_params["u"] = str(u.id)
+                    if "logout" in st.query_params:
+                        st.query_params.pop("logout", None)
                     st.success(f"¡Cuenta creada con éxito! Bienvenido/a, **{u.nombre}**.")
                     st.rerun()
                 except Exception as e:
@@ -270,6 +316,8 @@ st.sidebar.markdown(f"👤 **Usuario:** `{current_user.nombre}`\n\n📧 `{curren
 if st.sidebar.button("🚪 Cerrar Sesión", use_container_width=True):
     st.session_state.pop("user_id", None)
     st.session_state.pop("active_room_id", None)
+    st.query_params.pop("u", None)
+    st.query_params["logout"] = "true"
     st.rerun()
 
 st.sidebar.markdown("---")
