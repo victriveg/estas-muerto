@@ -752,18 +752,18 @@ with tab_rotacion:
     if is_host:
         st.markdown("---")
         st.subheader("👑 Cambio de Arma para Jugadores (Solo Host)")
-        players_con_cambios = db.query(Player).filter(
-            (Player.room_id == room_id) & (Player.cambios_restantes > 0) & (Player.estado == "vivo")
+        all_vivos = db.query(Player).filter(
+            (Player.room_id == room_id) & (Player.estado == "vivo")
         ).all()
 
-        if players_con_cambios:
-            dict_cambios = {f"{p.user.nombre} ({p.cambios_restantes} cambios restantes)": p.id for p in players_con_cambios}
+        if all_vivos:
+            dict_cambios = {f"{p.user.nombre} (Cambios restantes: {p.cambios_restantes})": p.id for p in all_vivos}
             player_sel_key = st.selectbox("Seleccionar jugador a quien cambiar el arma:", list(dict_cambios.keys()), key="host_weapon_change_sel")
             player_sel_id = dict_cambios[player_sel_key]
 
             if st.button("🎲 Ejecutar Cambio a este Jugador (Host)", use_container_width=True, key="btn_host_change_player_weapon"):
                 try:
-                    nuevo_objeto, cambios_left = game_logic.ejecutar_cambio_arma(db, room_id, player_sel_id)
+                    nuevo_objeto, cambios_left = game_logic.ejecutar_cambio_arma(db, room_id, player_sel_id, es_host=True)
                     player_obj = db.query(Player).get(player_sel_id)
                     asig_obj = db.query(Assignment).filter_by(room_id=room_id, asesino_id=player_sel_id).first()
                     victima_obj = db.query(Player).get(asig_obj.victima_id) if asig_obj else None
@@ -776,14 +776,14 @@ with tab_rotacion:
                         nombre_victima=victima_obj.user.nombre if victima_obj else None
                     )
 
-                    st.success(f"✅ ¡Cambio realizado! La nueva arma de **{player_obj.user.nombre}** es **{nuevo_objeto}**. Le quedan {cambios_left} cambios.")
+                    st.success(f"✅ ¡Cambio realizado por el Host! La nueva arma de **{player_obj.user.nombre}** es **{nuevo_objeto}**.")
                     if exito_email:
                         st.info(f"📩 Correo enviado a {player_obj.user.email}.")
                     st.rerun()
                 except Exception as e:
                     st.error(f"Error al ejecutar el cambio: {e}")
         else:
-            st.caption("No hay jugadores vivos con cambios restantes.")
+            st.caption("No hay jugadores vivos actualmente en esta sala.")
 
     st.markdown("---")
     st.subheader("🔄 Rotación Periódica General")

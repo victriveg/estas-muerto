@@ -199,17 +199,21 @@ def registrar_baja(db: Session, room_id: int, asesino_player_id: int) -> dict:
     }
 
 
-def ejecutar_cambio_arma(db: Session, room_id: int, player_id: int) -> tuple[str, int]:
+def ejecutar_cambio_arma(db: Session, room_id: int, player_id: int, es_host: bool = False) -> tuple[str, int]:
     """
-    Ejecuta el cambio de arma individual para un jugador en una sala si le quedan cambios.
+    Ejecuta el cambio de arma individual para un jugador en una sala.
+    Si es_host es True, permite cambiar el arma sin consumir los cambios del jugador.
     """
     player = db.query(Player).filter_by(id=player_id, room_id=room_id).first()
-    if not player or player.cambios_restantes <= 0:
+    if not player:
+        raise ValueError("El jugador no existe en esta sala.")
+
+    if not es_host and player.cambios_restantes <= 0:
         raise ValueError("El jugador no tiene cambios de arma disponibles en esta sala.")
 
     asig = db.query(Assignment).filter_by(room_id=room_id, asesino_id=player_id).first()
     if not asig:
-        raise ValueError("El jugador no tiene una asignación activa.")
+        raise ValueError("El jugador no tiene una asignación activa en esta sala.")
 
     objetos = obtener_objetos_disponibles(db, room_id)
     if not objetos:
@@ -219,9 +223,10 @@ def ejecutar_cambio_arma(db: Session, room_id: int, player_id: int) -> tuple[str
     disponibles = [o for o in objetos if o != asig.objeto]
     nuevo_objeto = random.choice(disponibles) if disponibles else random.choice(objetos)
 
-    # Actualizar asignación y restar cambio
+    # Actualizar asignación
     asig.objeto = nuevo_objeto
-    player.cambios_restantes -= 1
+    if not es_host:
+        player.cambios_restantes -= 1
 
     db.commit()
     return nuevo_objeto, player.cambios_restantes
