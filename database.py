@@ -1,5 +1,5 @@
 import os
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import sessionmaker, declarative_base
 
 # URL de conexión: por defecto usa SQLite local para pruebas, o la variable DATABASE_URL (PostgreSQL) en producción
@@ -33,6 +33,55 @@ def get_db():
 
 
 def init_db():
-    """Crea las tablas en la base de datos si no existen."""
+    """Crea las tablas en la base de datos si no existen y auto-migra columnas faltantes."""
     import models  # Asegura la carga de los modelos
     Base.metadata.create_all(bind=engine)
+
+    try:
+        inspector = inspect(engine)
+        tables = inspector.get_table_names()
+
+        if "users" in tables:
+            columns = [c["name"] for c in inspector.get_columns("users")]
+            with engine.connect() as conn:
+                if "recibir_correos" not in columns:
+                    if engine.dialect.name == "postgresql":
+                        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS recibir_correos BOOLEAN DEFAULT TRUE;"))
+                    else:
+                        conn.execute(text("ALTER TABLE users ADD COLUMN recibir_correos BOOLEAN DEFAULT 1;"))
+
+                if "reset_token" not in columns:
+                    if engine.dialect.name == "postgresql":
+                        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token VARCHAR(255);"))
+                    else:
+                        conn.execute(text("ALTER TABLE users ADD COLUMN reset_token VARCHAR(255);"))
+
+                if "reset_token_expires" not in columns:
+                    if engine.dialect.name == "postgresql":
+                        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_expires TIMESTAMP;"))
+                    else:
+                        conn.execute(text("ALTER TABLE users ADD COLUMN reset_token_expires DATETIME;"))
+                conn.commit()
+
+        if "rooms" in tables:
+            columns = [c["name"] for c in inspector.get_columns("rooms")]
+            with engine.connect() as conn:
+                if "modo_ciego" not in columns:
+                    if engine.dialect.name == "postgresql":
+                        conn.execute(text("ALTER TABLE rooms ADD COLUMN IF NOT EXISTS modo_ciego BOOLEAN DEFAULT FALSE;"))
+                    else:
+                        conn.execute(text("ALTER TABLE rooms ADD COLUMN modo_ciego BOOLEAN DEFAULT 0;"))
+                conn.commit()
+
+        if "players" in tables:
+            columns = [c["name"] for c in inspector.get_columns("players")]
+            with engine.connect() as conn:
+                if "cambios_restantes" not in columns:
+                    if engine.dialect.name == "postgresql":
+                        conn.execute(text("ALTER TABLE players ADD COLUMN IF NOT EXISTS cambios_restantes INTEGER DEFAULT 2;"))
+                    else:
+                        conn.execute(text("ALTER TABLE players ADD COLUMN cambios_restantes INTEGER DEFAULT 2;"))
+                conn.commit()
+
+    except Exception as e:
+        print(f"Nota auto-migración de esquema: {e}")
