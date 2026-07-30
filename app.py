@@ -17,59 +17,64 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# SCRIPT DE OCULTACIÓN PARA STREAMLIT CLOUD (PARENT FRAME & DOM)
+# SCRIPT DE OCULTACIÓN Y PURGA DOM PARA STREAMLIT CLOUD (TOP & PARENT FRAME)
 # ---------------------------------------------------------
 components.html("""
 <script>
-    function removeCloudButtons() {
-        try {
-            const targets = [
-                window.document,
-                window.parent.document
-            ];
-            const selectors = [
-                '[data-testid="appCreatorAvatar"]',
-                '[class*="_profilePreview_"]',
-                '[class*="_profileImage_"]',
-                '[class*="_viewerBadge_"]',
-                '[class*="_container_gzau3_"]',
-                'a[href*="streamlit.io/cloud"]',
-                'a[href*="share.streamlit.io/user"]',
-                '[data-testid="stToolbarActionButton"]',
-                '[class*="stToolbarActionButton"]',
-                'button[aria-label*="Fork"]',
-                'button[aria-label*="GitHub"]',
-                'button[aria-label*="git"]',
-                'header a',
-                '[data-testid="stHeader"] a',
-                '[data-testid="stToolbar"] a',
-                '.viewerBadge_container__1QSob',
-                '[class*="viewerBadge"]',
-                '[class*="stAppHeader"] a',
-                '[data-testid="stDecoration"]',
-                '[data-testid="stStatusWidget"]',
-                'a[href*="github.com"]',
-                'a[href*="streamlit.io"]',
-                'a[href*="share.streamlit.io"]',
-                'footer',
-                '[data-testid="stFooter"]'
-            ];
-            targets.forEach(doc => {
-                if (!doc) return;
-                selectors.forEach(sel => {
-                    const els = doc.querySelectorAll(sel);
+    function purgeCloudElements() {
+        const docs = [];
+        try { if (window.document) docs.push(window.document); } catch(e){}
+        try { if (window.parent && window.parent.document) docs.push(window.parent.document); } catch(e){}
+        try { if (window.top && window.top.document) docs.push(window.top.document); } catch(e){}
+
+        const selectors = [
+            '._container_gzau3_1',
+            '._viewerBadge_aycw8_23',
+            '._profilePreview_gzau3_63',
+            '._profileImage_gzau3_78',
+            '[class*="_viewerBadge_"]',
+            '[class*="_container_gzau3_"]',
+            '[class*="_profilePreview_"]',
+            '[class*="_profileImage_"]',
+            '[data-testid="appCreatorAvatar"]',
+            'a[href*="streamlit.io/cloud"]',
+            'a[href*="share.streamlit.io/user"]',
+            'a[href*="share.streamlit.io"]',
+            'a[href*="streamlit.io"]',
+            'a[href*="github.com"]',
+            '[data-testid="stToolbarActionButton"]',
+            '[class*="stToolbarActionButton"]',
+            'button[aria-label*="Fork"]',
+            'button[aria-label*="GitHub"]',
+            'button[aria-label*="git"]',
+            'footer',
+            '[data-testid="stFooter"]'
+        ];
+
+        docs.forEach(d => {
+            if (!d) return;
+            try {
+                if (!d.getElementById('purge-cloud-style')) {
+                    const s = d.createElement('style');
+                    s.id = 'purge-cloud-style';
+                    s.innerHTML = selectors.join(', ') + ' { display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; }';
+                    d.head.appendChild(s);
+                }
+            } catch(e){}
+
+            selectors.forEach(sel => {
+                try {
+                    const els = d.querySelectorAll(sel);
                     els.forEach(el => {
-                        el.style.setProperty('display', 'none', 'important');
-                        el.style.setProperty('visibility', 'hidden', 'important');
-                        el.style.setProperty('opacity', '0', 'important');
-                        el.style.setProperty('pointer-events', 'none', 'important');
+                        try { el.remove(); } catch(e) { el.style.display = 'none'; }
                     });
-                });
+                } catch(e){}
             });
-        } catch(e) {}
+        });
     }
-    removeCloudButtons();
-    setInterval(removeCloudButtons, 150);
+
+    purgeCloudElements();
+    setInterval(purgeCloudElements, 100);
 </script>
 """, height=0, width=0)
 
