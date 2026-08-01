@@ -79,9 +79,6 @@ def request_password_reset(db: Session, email: str) -> tuple[str, User]:
     return token, user
 
 
-from models import User, Room, Player
-
-...
 def reset_password_with_token(db: Session, email: str, token: str, new_password: str) -> bool:
     """Valida el código OTP e impone la nueva contraseña para el usuario."""
     email_clean = email.strip().lower()
