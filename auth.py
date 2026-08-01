@@ -113,6 +113,11 @@ def obtener_estadisticas_usuario(db: Session, user_id: int) -> dict:
     total_kills = sum(p.bajas for p in players)
 
     partidas_ganadas = 0
+    has_renegado = False
+    has_unlucky = False
+    has_concentrado = False
+    has_killing_spree = False
+    has_ace = False
     has_relampago = False
     has_loser = False
 
