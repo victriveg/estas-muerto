@@ -101,6 +101,12 @@ def init_db():
                         conn.execute(text("ALTER TABLE players ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;"))
                     else:
                         conn.execute(text("ALTER TABLE players ADD COLUMN created_at DATETIME;"))
+                
+                # Saneamiento de datos preexistentes: ajustar cambios gratuitos al máximo de 1
+                conn.execute(text("UPDATE players SET cambios_gratuitos = 1 WHERE cambios_gratuitos IS NULL OR cambios_gratuitos > 1;"))
+                conn.execute(text("UPDATE players SET cambios_bonus = 0 WHERE cambios_bonus IS NULL;"))
+                conn.execute(text("UPDATE players SET cambios_realizados = 0 WHERE cambios_realizados IS NULL;"))
+                conn.execute(text("UPDATE players SET cambios_restantes = (COALESCE(cambios_gratuitos, 1) + COALESCE(cambios_bonus, 0));"))
                 conn.commit()
 
     except Exception as e:

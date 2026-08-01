@@ -336,7 +336,7 @@ with st.sidebar.expander("🔑 Introducir Código PIN", expanded=bool(url_pin)):
             if room_found:
                 player_existing = db.query(Player).filter_by(user_id=current_user.id, room_id=room_found.id).first()
                 if not player_existing:
-                    p_new = Player(user_id=current_user.id, room_id=room_found.id, estado="vivo", bajas=0, cambios_restantes=2)
+                    p_new = Player(user_id=current_user.id, room_id=room_found.id, estado="vivo", bajas=0, cambios_restantes=1, cambios_gratuitos=1, cambios_bonus=0)
                     db.add(p_new)
                     db.commit()
                     st.success(f"¡Te has inscrito en **{room_found.nombre}**!")
@@ -400,8 +400,20 @@ proxima_rot_str = proxima_rot.strftime("%d-%m-%Y %H:%M") if proxima_rot else "No
 # Info de la sala en Sidebar
 st.sidebar.info(f"**Sala Activa:** {room_actual.nombre}\n\n🔑 **PIN:** `{room_actual.codigo}`\n\n⏱️ **Próxima Rotación (8am):** `{proxima_rot_str}`")
 
-is_host = (current_user.id == room_actual.host_id)
 player_active = db.query(Player).filter_by(user_id=current_user.id, room_id=room_id).first()
+if player_active:
+    needs_update = False
+    if getattr(player_active, "cambios_gratuitos", 1) is None or player_active.cambios_gratuitos > 1:
+        player_active.cambios_gratuitos = 1
+        needs_update = True
+    if getattr(player_active, "cambios_bonus", 0) is None:
+        player_active.cambios_bonus = 0
+        needs_update = True
+    if player_active.cambios_restantes != (player_active.cambios_gratuitos + player_active.cambios_bonus):
+        player_active.cambios_restantes = player_active.cambios_gratuitos + player_active.cambios_bonus
+        needs_update = True
+    if needs_update:
+        db.commit()
 
 
 
