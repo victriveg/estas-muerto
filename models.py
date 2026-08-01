@@ -56,7 +56,9 @@ class Player(Base):
     room_id = Column(Integer, ForeignKey("rooms.id", ondelete="CASCADE"), nullable=False)
     estado = Column(String(20), default="vivo", nullable=False)  # 'vivo', 'muerto'
     bajas = Column(Integer, default=0, nullable=False)
-    cambios_restantes = Column(Integer, default=2, nullable=False)
+    cambios_restantes = Column(Integer, default=1, nullable=False)
+    cambios_gratuitos = Column(Integer, default=1, nullable=False)
+    cambios_bonus = Column(Integer, default=0, nullable=False)
     cambios_realizados = Column(Integer, default=0, nullable=False)
     fecha_eliminacion = Column(DateTime, nullable=True)
 

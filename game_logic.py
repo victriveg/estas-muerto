@@ -68,10 +68,17 @@ def generar_ciclo_cerrado(db: Session, room_id: int) -> list[Assignment]:
         db.add(asig)
         nuevas_asignaciones.append(asig)
 
-    # Actualizar estado de la sala
+    # Actualizar estado de la sala y restaurar 1 reroll gratuito a supervivientes (máximo 1)
     room = db.query(Room).get(room_id)
     if room:
-        room.estado = "en_juego"
+        if room.estado == "en_juego":
+            for p_v in vivos:
+                if getattr(p_v, "cambios_gratuitos", 0) < 1:
+                    p_v.cambios_gratuitos = 1
+                p_v.cambios_restantes = (p_v.cambios_gratuitos or 0) + (getattr(p_v, "cambios_bonus", 0) or 0)
+        else:
+            room.estado = "en_juego"
+
         now = datetime.utcnow()
         if not room.fecha_inicio:
             room.fecha_inicio = now
@@ -154,9 +161,12 @@ def registrar_baja(db: Session, room_id: int, asesino_player_id: int) -> dict:
     victima_player.estado = "muerto"
     victima_player.fecha_eliminacion = datetime.utcnow()
 
-    # 4. Incrementar bajas del asesino
+    # 4. Incrementar bajas del asesino y otorgar +1 cambio de arma bonus por baja
     asesino_player = db.query(Player).get(asesino_player_id)
     asesino_player.bajas += 1
+    if hasattr(asesino_player, "cambios_bonus"):
+        asesino_player.cambios_bonus = (asesino_player.cambios_bonus or 0) + 1
+    asesino_player.cambios_restantes = (getattr(asesino_player, "cambios_gratuitos", 1) or 0) + (getattr(asesino_player, "cambios_bonus", 0) or 0)
 
     # 5. Herencia: actualizar la asignación del asesino con la víctima y arma heredadas
     asig_asesino.victima_id = siguiente_victima_id
@@ -202,13 +212,17 @@ def registrar_baja(db: Session, room_id: int, asesino_player_id: int) -> dict:
 def ejecutar_cambio_arma(db: Session, room_id: int, player_id: int, es_host: bool = False) -> tuple[str, int]:
     """
     Ejecuta el cambio de arma individual para un jugador en una sala.
-    Si es_host es True, permite cambiar el arma sin consumir los cambios del jugador.
+    Consume primero el cambio gratuito (si disponible) y luego los cambios bonus por bajas.
     """
     player = db.query(Player).filter_by(id=player_id, room_id=room_id).first()
     if not player:
         raise ValueError("El jugador no existe en esta sala.")
 
-    if not es_host and player.cambios_restantes <= 0:
+    gratuitos = getattr(player, "cambios_gratuitos", 1) or 0
+    bonus = getattr(player, "cambios_bonus", 0) or 0
+    total_disponibles = gratuitos + bonus
+
+    if not es_host and total_disponibles <= 0:
         raise ValueError("El jugador no tiene cambios de arma disponibles en esta sala.")
 
     asig = db.query(Assignment).filter_by(room_id=room_id, asesino_id=player_id).first()
@@ -223,13 +237,19 @@ def ejecutar_cambio_arma(db: Session, room_id: int, player_id: int, es_host: boo
     disponibles = [o for o in objetos if o != asig.objeto]
     nuevo_objeto = random.choice(disponibles) if disponibles else random.choice(objetos)
 
-    # Actualizar asignación
+    # Actualizar asignación y descontar primero el cambio gratuito, luego bonus
     asig.objeto = nuevo_objeto
     if not es_host:
-        player.cambios_restantes -= 1
-    
+        if getattr(player, "cambios_gratuitos", 0) > 0:
+            player.cambios_gratuitos -= 1
+        elif getattr(player, "cambios_bonus", 0) > 0:
+            player.cambios_bonus -= 1
+
     if hasattr(player, "cambios_realizados"):
         player.cambios_realizados = (player.cambios_realizados or 0) + 1
+
+    # Sincronizar total de cambios restantes
+    player.cambios_restantes = (getattr(player, "cambios_gratuitos", 0) or 0) + (getattr(player, "cambios_bonus", 0) or 0)
 
     db.commit()
     return nuevo_objeto, player.cambios_restantes

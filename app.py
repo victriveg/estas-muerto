@@ -692,8 +692,12 @@ with tab_gestion:
 
     # 1. CAMBIO DE ARMA PROPIA PARA JUGADORES
     if player_active and player_active.estado == "vivo":
-        if player_active.cambios_restantes > 0:
-            st.info(f"🔄 **Cambios restantes de arma:** {player_active.cambios_restantes}")
+        cg = getattr(player_active, "cambios_gratuitos", 1) or 0
+        cb = getattr(player_active, "cambios_bonus", 0) or 0
+        total_disp = cg + cb
+
+        if total_disp > 0:
+            st.info(f"🔄 **Cambios disponibles de arma:** {total_disp} (`{cg}` gratuito + `{cb}` acumulados por bajas)")
             
             if st.button("🎲 Cambiar Mi Arma", type="primary", use_container_width=True, key="btn_change_my_weapon"):
                 st.session_state["confirmar_cambio_arma_dialog"] = True
@@ -703,7 +707,7 @@ with tab_gestion:
                     @st.dialog("❓ Confirmar Cambio de Arma")
                     def modal_confirmar_arma():
                         st.write("¿Estás seguro/a de que deseas cambiar tu arma actual por una nueva?")
-                        st.warning("⚠️ Esta acción consumirá 1 de tus 2 cambios disponibles en esta partida.")
+                        st.warning(f"⚠️ Consumirá 1 de tus cambios disponibles (te quedarán {total_disp - 1}). Se prioriza el uso del cambio gratuito.")
                         col_c1, col_c2 = st.columns(2)
                         if col_c1.button("✅ Sí, Cambiar Arma", type="primary", use_container_width=True, key="btn_confirm_dialog"):
                             st.session_state["confirmar_cambio_arma_dialog"] = False

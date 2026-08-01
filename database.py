@@ -78,9 +78,19 @@ def init_db():
             with engine.connect() as conn:
                 if "cambios_restantes" not in columns:
                     if engine.dialect.name == "postgresql":
-                        conn.execute(text("ALTER TABLE players ADD COLUMN IF NOT EXISTS cambios_restantes INTEGER DEFAULT 2;"))
+                        conn.execute(text("ALTER TABLE players ADD COLUMN IF NOT EXISTS cambios_restantes INTEGER DEFAULT 1;"))
                     else:
-                        conn.execute(text("ALTER TABLE players ADD COLUMN cambios_restantes INTEGER DEFAULT 2;"))
+                        conn.execute(text("ALTER TABLE players ADD COLUMN cambios_restantes INTEGER DEFAULT 1;"))
+                if "cambios_gratuitos" not in columns:
+                    if engine.dialect.name == "postgresql":
+                        conn.execute(text("ALTER TABLE players ADD COLUMN IF NOT EXISTS cambios_gratuitos INTEGER DEFAULT 1;"))
+                    else:
+                        conn.execute(text("ALTER TABLE players ADD COLUMN cambios_gratuitos INTEGER DEFAULT 1;"))
+                if "cambios_bonus" not in columns:
+                    if engine.dialect.name == "postgresql":
+                        conn.execute(text("ALTER TABLE players ADD COLUMN IF NOT EXISTS cambios_bonus INTEGER DEFAULT 0;"))
+                    else:
+                        conn.execute(text("ALTER TABLE players ADD COLUMN cambios_bonus INTEGER DEFAULT 0;"))
                 if "cambios_realizados" not in columns:
                     if engine.dialect.name == "postgresql":
                         conn.execute(text("ALTER TABLE players ADD COLUMN IF NOT EXISTS cambios_realizados INTEGER DEFAULT 0;"))
