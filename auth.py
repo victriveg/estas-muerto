@@ -104,18 +104,64 @@ def reset_password_with_token(db: Session, email: str, token: str, new_password:
 
 def obtener_estadisticas_usuario(db: Session, user_id: int) -> dict:
     """Calcula las estadísticas globales acumuladas del usuario e insignias desbloqueadas."""
+    from collections import Counter
+    from models import HistoryLog
+
     players = db.query(Player).filter_by(user_id=user_id).all()
 
     partidas_jugadas = len(players)
     total_kills = sum(p.bajas for p in players)
 
     partidas_ganadas = 0
+    has_renegado = False
+    has_unlucky = False
+    has_concentrado = False
+    has_killing_spree = False
+    has_ace = False
+
     for p in players:
         room = db.query(Room).get(p.room_id)
+        
+        # 1. Ganador, Renegado, Concentrado y Ace
         if room and room.estado == "finalizada" and p.estado == "vivo":
             partidas_ganadas += 1
+            if p.bajas == 1:
+                has_renegado = True
+            
+            if p.cambios_restantes == 2 and getattr(p, "cambios_realizados", 0) == 0:
+                has_concentrado = True
+            
+            total_in_room = db.query(Player).filter_by(room_id=p.room_id).count()
+            if total_in_room >= 3 and p.bajas == (total_in_room - 1):
+                has_ace = True
+
+        # 2. Unlucky (jugador con más bajas de la sala pero fuera del top 3)
+        room_players = db.query(Player).filter_by(room_id=p.room_id).order_by(Player.bajas.desc()).all()
+        if room_players:
+            max_k = max(rp.bajas for rp in room_players)
+            if p.bajas == max_k and p.bajas > 0:
+                rank = 1
+                prev_b = None
+                p_pos = 0
+                for idx, rp in enumerate(room_players, start=1):
+                    if rp.bajas != prev_b:
+                        rank = idx
+                        prev_b = rp.bajas
+                    if rp.id == p.id:
+                        p_pos = rank
+                        break
+                if p_pos > 3:
+                    has_unlucky = True
+
+        # 3. Killing Spree (2 o más bajas en un mismo día en la sala)
+        logs = db.query(HistoryLog).filter_by(room_id=p.room_id, asesino_id=p.id).all()
+        dates = [l.fecha.date() for l in logs if l.fecha]
+        counts = Counter(dates)
+        if any(c >= 2 for c in counts.values()):
+            has_killing_spree = True
 
     insignias = [
+        # Logros Base
         {
             "nombre": "🩸 Primera Sangre",
             "descripcion": "Consigue tu primer asesinato en cualquier partida.",
@@ -144,7 +190,59 @@ def obtener_estadisticas_usuario(db: Session, user_id: int) -> dict:
         {
             "nombre": "🎲 Estratega del Cambio",
             "descripcion": "Ejecuta al menos 1 cambio individual de arma.",
-            "desbloqueado": any(p.cambios_restantes < 2 for p in players)
+            "desbloqueado": any((p.cambios_restantes < 2 or getattr(p, "cambios_realizados", 0) > 0) for p in players)
+        },
+
+        # Logros Especiales Solicitados
+        {
+            "nombre": "👤 Renegado",
+            "descripcion": "Gana una partida realizando únicamente la baja final del último jugador.",
+            "desbloqueado": has_renegado
+        },
+        {
+            "nombre": "🍀 Unlucky",
+            "descripcion": "Sé el jugador con más bajas acumuladas de la sala pero queda fuera del podio (puesto 4º o inferior).",
+            "desbloqueado": has_unlucky
+        },
+        {
+            "nombre": "🧘 Concentrado",
+            "descripcion": "Gana una partida sin utilizar ningún reroll de objeto en tu arma asignada.",
+            "desbloqueado": has_concentrado
+        },
+        {
+            "nombre": "🔥 Killing Spree",
+            "descripcion": "Elimina a 2 o más jugadores en un mismo día en cualquier sala.",
+            "desbloqueado": has_killing_spree
+        },
+        {
+            "nombre": "⚔️ Doublekill",
+            "descripcion": "Elimina a 2 jugadores en una misma partida.",
+            "desbloqueado": any(p.bajas >= 2 for p in players)
+        },
+        {
+            "nombre": "⚔️ Triplekill",
+            "descripcion": "Elimina a 3 jugadores en una misma partida.",
+            "desbloqueado": any(p.bajas >= 3 for p in players)
+        },
+        {
+            "nombre": "⚔️ Quadrakill",
+            "descripcion": "Elimina a 4 jugadores en una misma partida.",
+            "desbloqueado": any(p.bajas >= 4 for p in players)
+        },
+        {
+            "nombre": "🔥 Pentakill",
+            "descripcion": "Elimina a 5 o más jugadores en una misma partida.",
+            "desbloqueado": any(p.bajas >= 5 for p in players)
+        },
+        {
+            "nombre": "💥 Ace",
+            "descripcion": "Elimina a absolutamente todos los oponentes participantes de la partida.",
+            "desbloqueado": has_ace
+        },
+        {
+            "nombre": "🎲 Indeciso",
+            "descripcion": "Haz reroll de arma 3 o más veces sobre el mismo jugador en una partida.",
+            "desbloqueado": any(getattr(p, "cambios_realizados", 0) >= 3 for p in players)
         }
     ]
 

@@ -81,6 +81,11 @@ def init_db():
                         conn.execute(text("ALTER TABLE players ADD COLUMN IF NOT EXISTS cambios_restantes INTEGER DEFAULT 2;"))
                     else:
                         conn.execute(text("ALTER TABLE players ADD COLUMN cambios_restantes INTEGER DEFAULT 2;"))
+                if "cambios_realizados" not in columns:
+                    if engine.dialect.name == "postgresql":
+                        conn.execute(text("ALTER TABLE players ADD COLUMN IF NOT EXISTS cambios_realizados INTEGER DEFAULT 0;"))
+                    else:
+                        conn.execute(text("ALTER TABLE players ADD COLUMN cambios_realizados INTEGER DEFAULT 0;"))
                 conn.commit()
 
     except Exception as e:

@@ -57,6 +57,7 @@ class Player(Base):
     estado = Column(String(20), default="vivo", nullable=False)  # 'vivo', 'muerto'
     bajas = Column(Integer, default=0, nullable=False)
     cambios_restantes = Column(Integer, default=2, nullable=False)
+    cambios_realizados = Column(Integer, default=0, nullable=False)
     fecha_eliminacion = Column(DateTime, nullable=True)
 
     # Restricción: Un usuario solo puede registrarse una vez en una misma sala

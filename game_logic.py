@@ -227,6 +227,9 @@ def ejecutar_cambio_arma(db: Session, room_id: int, player_id: int, es_host: boo
     asig.objeto = nuevo_objeto
     if not es_host:
         player.cambios_restantes -= 1
+    
+    if hasattr(player, "cambios_realizados"):
+        player.cambios_realizados = (player.cambios_realizados or 0) + 1
 
     db.commit()
     return nuevo_objeto, player.cambios_restantes
