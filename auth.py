@@ -14,7 +14,12 @@ def hash_password(password: str) -> str:
 
 def verify_password(password: str, password_hash: str) -> bool:
     """Verifica si una contraseña en texto plano coincide con el hash guardado."""
-    if not password_hash or "$" not in password_hash:
+    if not password_hash:
+        return False
+    # Coincidencia directa en texto plano (compatibilidad con cuentas antiguas o creadas manualmente)
+    if password_hash == password:
+        return True
+    if "$" not in password_hash:
         return False
     try:
         salt_hex, key_hex = password_hash.split("$", 1)
@@ -29,7 +34,7 @@ def verify_password(password: str, password_hash: str) -> bool:
 def register_user(db: Session, nombre: str, email: str, password: str) -> User:
     """Registra un nuevo usuario en la base de datos con contraseña hasheada."""
     email_clean = email.strip().lower()
-    if db.query(User).filter_by(email=email_clean).first():
+    if db.query(User).filter(User.email.ilike(email_clean)).first():
         raise ValueError(f"Ya existe un usuario registrado con el correo '{email_clean}'.")
 
     pwd_hash = hash_password(password)
@@ -45,12 +50,16 @@ def register_user(db: Session, nombre: str, email: str, password: str) -> User:
 
 
 def authenticate_user(db: Session, email: str, password: str) -> User | None:
-    """Autentica a un usuario verificando su correo y contraseña."""
+    """Autentica a un usuario verificando su correo (case-insensitive) y contraseña."""
     email_clean = email.strip().lower()
-    user = db.query(User).filter_by(email=email_clean).first()
+    user = db.query(User).filter(User.email.ilike(email_clean)).first()
     if not user:
         return None
     if verify_password(password, user.password_hash):
+        # Auto-actualizar hash si la cuenta venía en texto plano
+        if user.password_hash == password:
+            user.password_hash = hash_password(password)
+            db.commit()
         return user
     return None
 
