@@ -61,6 +61,7 @@ class Player(Base):
     cambios_bonus = Column(Integer, default=0, nullable=False)
     cambios_realizados = Column(Integer, default=0, nullable=False)
     fecha_eliminacion = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
     # Restricción: Un usuario solo puede registrarse una vez en una misma sala
     __table_args__ = (

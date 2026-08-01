@@ -113,11 +113,8 @@ def obtener_estadisticas_usuario(db: Session, user_id: int) -> dict:
     total_kills = sum(p.bajas for p in players)
 
     partidas_ganadas = 0
-    has_renegado = False
-    has_unlucky = False
-    has_concentrado = False
-    has_killing_spree = False
-    has_ace = False
+    has_relampago = False
+    has_loser = False
 
     for p in players:
         room = db.query(Room).get(p.room_id)
@@ -153,12 +150,29 @@ def obtener_estadisticas_usuario(db: Session, user_id: int) -> dict:
                 if p_pos > 3:
                     has_unlucky = True
 
-        # 3. Killing Spree (2 o más bajas en un mismo día en la sala)
+        # 3. Killing Spree y Asesino Relámpago (baja en < 2h)
         logs = db.query(HistoryLog).filter_by(room_id=p.room_id, asesino_id=p.id).all()
         dates = [l.fecha.date() for l in logs if l.fecha]
         counts = Counter(dates)
         if any(c >= 2 for c in counts.values()):
             has_killing_spree = True
+
+        if room and logs:
+            ref_time = room.fecha_inicio or getattr(p, "created_at", None)
+            for l in logs:
+                if l.fecha and ref_time:
+                    diff_sec = (l.fecha - ref_time).total_seconds()
+                    if 0 <= diff_sec <= 7200: # 2 horas
+                        has_relampago = True
+                        break
+
+        # 4. Looser (eliminado en menos de 24h desde que se unió a la sala)
+        if p.estado == "muerto" and p.fecha_eliminacion:
+            p_created = getattr(p, "created_at", None) or (room.created_at if room else None)
+            if p_created:
+                diff_sec = (p.fecha_eliminacion - p_created).total_seconds()
+                if 0 <= diff_sec <= 86400: # 24 horas
+                    has_loser = True
 
     insignias = [
         # Logros Base
@@ -243,6 +257,16 @@ def obtener_estadisticas_usuario(db: Session, user_id: int) -> dict:
             "nombre": "🎲 Indeciso",
             "descripcion": "Haz reroll de arma 3 o más veces sobre el mismo jugador en una partida.",
             "desbloqueado": any(getattr(p, "cambios_realizados", 0) >= 3 for p in players)
+        },
+        {
+            "nombre": "⚡ Asesino Relámpago",
+            "descripcion": "Elimina a tu víctima en menos de 2 horas desde el inicio de la partida o asignación.",
+            "desbloqueado": has_relampago
+        },
+        {
+            "nombre": "💀 Looser",
+            "descripcion": "Sé eliminado en menos de 24 horas desde que te uniste a la sala.",
+            "desbloqueado": has_loser
         }
     ]
 

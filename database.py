@@ -96,6 +96,11 @@ def init_db():
                         conn.execute(text("ALTER TABLE players ADD COLUMN IF NOT EXISTS cambios_realizados INTEGER DEFAULT 0;"))
                     else:
                         conn.execute(text("ALTER TABLE players ADD COLUMN cambios_realizados INTEGER DEFAULT 0;"))
+                if "created_at" not in columns:
+                    if engine.dialect.name == "postgresql":
+                        conn.execute(text("ALTER TABLE players ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;"))
+                    else:
+                        conn.execute(text("ALTER TABLE players ADD COLUMN created_at DATETIME;"))
                 conn.commit()
 
     except Exception as e:
