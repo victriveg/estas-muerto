@@ -850,8 +850,6 @@ with tab_gestion:
 # =========================================================
 if is_host and tab_setup:
     with tab_setup:
-        st.subheader("⚙️ Configuración de la Partida y Sala")
-
         if is_host:
             st.success(f"👑 **Eres el Host (Creador) de la sala {room_actual.nombre}.** Tienes permisos completos de administración.")
         else:
@@ -872,7 +870,7 @@ if is_host and tab_setup:
         if not player_active:
             st.info(f"💡 No estás inscrito en la sala **{room_actual.nombre}**.")
             if st.button("🎮 Unirme a esta Sala", type="primary", use_container_width=True):
-                p_new = Player(user_id=current_user.id, room_id=room_id, estado="vivo", bajas=0, cambios_restantes=2)
+                p_new = Player(user_id=current_user.id, room_id=room_id, estado="vivo", bajas=0, cambios_restantes=1, cambios_gratuitos=1, cambios_bonus=0)
                 db.add(p_new)
                 db.commit()
                 st.success(f"¡Te has unido a {room_actual.nombre}!")
@@ -899,7 +897,7 @@ if is_host and tab_setup:
                         db.add(n_room)
                         db.commit()
                         db.refresh(n_room)
-                        p_creator = Player(user_id=current_user.id, room_id=n_room.id, estado="vivo", bajas=0, cambios_restantes=2)
+                        p_creator = Player(user_id=current_user.id, room_id=n_room.id, estado="vivo", bajas=0, cambios_restantes=1, cambios_gratuitos=1, cambios_bonus=0)
                         db.add(p_creator)
                         db.commit()
                         st.session_state["active_room_id"] = n_room.id
@@ -930,7 +928,7 @@ if is_host and tab_setup:
                     if player_existing:
                         st.error(f"❌ El usuario '{email_clean}' ya forma parte de esta sala.")
                     else:
-                        player_new = Player(user_id=user.id, room_id=room_id, estado="vivo", bajas=0, cambios_restantes=2)
+                        player_new = Player(user_id=user.id, room_id=room_id, estado="vivo", bajas=0, cambios_restantes=1, cambios_gratuitos=1, cambios_bonus=0)
                         db.add(player_new)
                         db.commit()
                         st.success(f"Jugador '{name_clean}' inscrito en {room_actual.nombre}.")
