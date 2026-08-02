@@ -16,6 +16,13 @@ st.set_page_config(
     layout="centered"
 )
 
+# Refresco automático nativo cada 5 segundos en segundo plano
+try:
+    from streamlit_autorefresh import st_autorefresh
+    st_autorefresh(interval=5000, limit=None, key="global_autorefresh_timer")
+except Exception:
+    pass
+
 # ---------------------------------------------------------
 # SCRIPT DE OCULTACIÓN Y PURGA DOM PARA STREAMLIT CLOUD (TOP & PARENT FRAME)
 # ---------------------------------------------------------
