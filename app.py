@@ -4,7 +4,8 @@ import pandas as pd
 import time
 from datetime import datetime
 import email_service
-from database import SessionLocal, init_db
+import database
+from database import SessionLocal, init_db, engine
 from models import User, Room, Player, Assignment, GameObject, HistoryLog, KillClaim
 import game_logic
 import auth
@@ -282,7 +283,7 @@ if not current_user:
 
     st.markdown("---")
     with st.expander("🔍 Diagnóstico de Conexión a Base de Datos", expanded=False):
-        db_engine = database.engine.name
+        db_engine = engine.name
         st.write(f"**Motor de base de datos en uso:** `{db_engine}`")
         try:
             db.execute(text("SELECT 1"))
