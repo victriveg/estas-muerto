@@ -71,55 +71,10 @@ def get_smtp_credentials():
 
 def send_email(to_email, subject, body_html):
     """
-    Envía un correo electrónico usando las credenciales SMTP configuradas.
-    Si el usuario tiene desmarcada la opción de recibir correos, se omite el envío.
+    Desactivado para esta versión por directiva.
+    Devuelve True sin realizar envíos SMTP ni mostrar errores.
     """
-    try:
-        from database import SessionLocal
-        from models import User
-        tmp_db = SessionLocal()
-        user_obj = tmp_db.query(User).filter_by(email=to_email).first()
-        recibir = getattr(user_obj, "recibir_correos", True) if user_obj else True
-        tmp_db.close()
-        if recibir is False:
-            # El usuario ha desactivado la recepción de correos de la partida
-            return True
-    except Exception:
-        pass
-
-    sender_email, sender_password, smtp_server, smtp_port = get_smtp_credentials()
-
-    if not sender_email or not sender_password or sender_email == "tu_cuenta@gmail.com":
-        st.info(f"📧 [Simulación de Correo] Para: {to_email}\nAsunto: {subject}\n\n⚠️ No se detectaron credenciales SMTP válidas en secrets.toml o Streamlit Secrets.")
-        return True
-
-    try:
-        msg = MIMEMultipart("alternative")
-        msg["From"] = f"Estás Muerto 🔪 <{sender_email}>"
-        msg["To"] = to_email
-        msg["Subject"] = subject
-
-        # Adjuntar cuerpo HTML
-        msg.attach(MIMEText(body_html, "html"))
-
-        # Conectar al servidor SMTP (Soporta Port 465 SSL y Port 587 STARTTLS)
-        if smtp_port == 465:
-            with smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=10) as server:
-                server.login(sender_email, sender_password)
-                server.sendmail(sender_email, to_email, msg.as_string())
-        else:
-            with smtplib.SMTP(smtp_server, smtp_port, timeout=10) as server:
-                server.starttls()
-                server.login(sender_email, sender_password)
-                server.sendmail(sender_email, to_email, msg.as_string())
-        
-        return True
-    except smtplib.SMTPAuthenticationError as e:
-        st.error(f"❌ Error de Autenticación SMTP ({sender_email}): {e}\n\n💡 **Solución para Gmail:** Google requiere una **Contraseña de Aplicación** de 16 caracteres (no tu contraseña habitual). Genera una en `Cuenta de Google -> Seguridad -> Verificación en 2 pasos -> Contraseñas de aplicaciones`.")
-        return False
-    except Exception as e:
-        st.error(f"❌ Error al enviar correo a {to_email}: {e}")
-        return False
+    return True
 
 
 def build_assignment_email_html(nombre_asesino, nombre_victima, objeto, vivos_lista, historial_bajas=None, modo_ciego=False):
