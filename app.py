@@ -21,140 +21,140 @@ print("[LOG SERVIDOR] TEST 1: App iniciada", flush=True)
 
 # Refresco automático nativo cada 5 segundos en segundo plano
 try:
-        from streamlit_autorefresh import st_autorefresh
-        st_autorefresh(interval=5000, limit=None, key="global_autorefresh_timer")
-    except Exception:
-        pass
+    from streamlit_autorefresh import st_autorefresh
+    st_autorefresh(interval=5000, limit=None, key="global_autorefresh_timer")
+except Exception:
+    pass
 
-    # ---------------------------------------------------------
-    # SCRIPT DE OCULTACIÓN Y PURGA DOM PARA STREAMLIT CLOUD (TOP & PARENT FRAME)
-    # ---------------------------------------------------------
-    if hasattr(st, "html"):
-        st.html("""
-        <script>
-            function purgeCloudElements() {
-                const docs = [];
-                try { if (window.document) docs.push(window.document); } catch(e){}
-                try { if (window.parent && window.parent.document) docs.push(window.parent.document); } catch(e){}
-                try { if (window.top && window.top.document) docs.push(window.top.document); } catch(e){}
+# ---------------------------------------------------------
+# SCRIPT DE OCULTACIÓN Y PURGA DOM PARA STREAMLIT CLOUD (TOP & PARENT FRAME)
+# ---------------------------------------------------------
+if hasattr(st, "html"):
+    st.html("""
+    <script>
+        function purgeCloudElements() {
+            const docs = [];
+            try { if (window.document) docs.push(window.document); } catch(e){}
+            try { if (window.parent && window.parent.document) docs.push(window.parent.document); } catch(e){}
+            try { if (window.top && window.top.document) docs.push(window.top.document); } catch(e){}
 
-                const selectors = [
-                    '._container_gzau3_1',
-                    '._viewerBadge_aycw8_23',
-                    '._profilePreview_gzau3_63',
-                    '._profileImage_gzau3_78',
-                    '[class*="_viewerBadge_"]',
-                    '[class*="_container_gzau3_"]',
-                    '[class*="_profilePreview_"]',
-                    '[class*="_profileImage_"]',
-                    '[data-testid="appCreatorAvatar"]',
-                    'a[href*="streamlit.io/cloud"]',
-                    'a[href*="share.streamlit.io/user"]',
-                    'a[href*="share.streamlit.io"]',
-                    'a[href*="streamlit.io"]',
-                    'a[href*="github.com"]',
-                    '[data-testid="stToolbarActionButton"]',
-                    '[class*="stToolbarActionButton"]',
-                    'button[aria-label*="Fork"]',
-                    'button[aria-label*="GitHub"]',
-                    'button[aria-label*="git"]',
-                    'footer',
-                    '[data-testid="stFooter"]'
-                ];
+            const selectors = [
+                '._container_gzau3_1',
+                '._viewerBadge_aycw8_23',
+                '._profilePreview_gzau3_63',
+                '._profileImage_gzau3_78',
+                '[class*="_viewerBadge_"]',
+                '[class*="_container_gzau3_"]',
+                '[class*="_profilePreview_"]',
+                '[class*="_profileImage_"]',
+                '[data-testid="appCreatorAvatar"]',
+                'a[href*="streamlit.io/cloud"]',
+                'a[href*="share.streamlit.io/user"]',
+                'a[href*="share.streamlit.io"]',
+                'a[href*="streamlit.io"]',
+                'a[href*="github.com"]',
+                '[data-testid="stToolbarActionButton"]',
+                '[class*="stToolbarActionButton"]',
+                'button[aria-label*="Fork"]',
+                'button[aria-label*="GitHub"]',
+                'button[aria-label*="git"]',
+                'footer',
+                '[data-testid="stFooter"]'
+            ];
 
-                docs.forEach(d => {
-                    if (!d) return;
+            docs.forEach(d => {
+                if (!d) return;
+                try {
+                    if (!d.getElementById('purge-cloud-style')) {
+                        const s = d.createElement('style');
+                        s.id = 'purge-cloud-style';
+                        s.innerHTML = selectors.join(', ') + ' { display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; }';
+                        d.head.appendChild(s);
+                    }
+                } catch(e){}
+
+                selectors.forEach(sel => {
                     try {
-                        if (!d.getElementById('purge-cloud-style')) {
-                            const s = d.createElement('style');
-                            s.id = 'purge-cloud-style';
-                            s.innerHTML = selectors.join(', ') + ' { display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; }';
-                            d.head.appendChild(s);
-                        }
+                        const els = d.querySelectorAll(sel);
+                        els.forEach(el => {
+                            try { el.remove(); } catch(e) { el.style.display = 'none'; }
+                        });
                     } catch(e){}
-
-                    selectors.forEach(sel => {
-                        try {
-                            const els = d.querySelectorAll(sel);
-                            els.forEach(el => {
-                                try { el.remove(); } catch(e) { el.style.display = 'none'; }
-                            });
-                        } catch(e){}
-                    });
                 });
-            }
+            });
+        }
 
-            purgeCloudElements();
-            setInterval(purgeCloudElements, 200);
-        </script>
-        """)
+        purgeCloudElements();
+        setInterval(purgeCloudElements, 200);
+    </script>
+    """)
 
-    # ---------------------------------------------------------
-    # AJUSTES DE ESTILO CSS: OCULTAR GITHUB, FORK, BADGES DE STREAMLIT CLOUD Y FOOTER
-    # (Mantiene visible únicamente el menú nativo de 3 puntos #MainMenu para el cambio de tema)
-    # ---------------------------------------------------------
-    st.markdown("""
-    <style>
-    /* 1. Ocultar avatar de creador, badge Hosted with Streamlit y botones de toolbar */
-    [data-testid="appCreatorAvatar"],
-    [class*="_profilePreview_"],
-    [class*="_profileImage_"],
-    [class*="_viewerBadge_"],
-    [class*="_container_gzau3_"],
-    a[href*="streamlit.io/cloud"],
-    a[href*="share.streamlit.io/user"],
-    [data-testid="stToolbarActionButton"],
-    [class*="stToolbarActionButton"],
-    button[aria-label*="Fork"],
-    button[aria-label*="GitHub"],
-    button[aria-label*="git"],
-    header a,
-    [data-testid="stHeader"] a,
-    [data-testid="stToolbar"] a,
-    .viewerBadge_container__1QSob,
-    .styles_viewerBadge__1yB5_,
-    [class*="viewerBadge"],
-    [class*="stAppHeader"] a,
-    [data-testid="stDecoration"],
-    [data-testid="stStatusWidget"],
-    a[href*="github.com"],
-    a[href*="streamlit.io"],
-    a[href*="share.streamlit.io"] {
-        display: none !important;
-        visibility: hidden !important;
-        opacity: 0 !important;
-        pointer-events: none !important;
-    }
+# ---------------------------------------------------------
+# AJUSTES DE ESTILO CSS: OCULTAR GITHUB, FORK, BADGES DE STREAMLIT CLOUD Y FOOTER
+# (Mantiene visible únicamente el menú nativo de 3 puntos #MainMenu para el cambio de tema)
+# ---------------------------------------------------------
+st.markdown("""
+<style>
+/* 1. Ocultar avatar de creador, badge Hosted with Streamlit y botones de toolbar */
+[data-testid="appCreatorAvatar"],
+[class*="_profilePreview_"],
+[class*="_profileImage_"],
+[class*="_viewerBadge_"],
+[class*="_container_gzau3_"],
+a[href*="streamlit.io/cloud"],
+a[href*="share.streamlit.io/user"],
+[data-testid="stToolbarActionButton"],
+[class*="stToolbarActionButton"],
+button[aria-label*="Fork"],
+button[aria-label*="GitHub"],
+button[aria-label*="git"],
+header a,
+[data-testid="stHeader"] a,
+[data-testid="stToolbar"] a,
+.viewerBadge_container__1QSob,
+.styles_viewerBadge__1yB5_,
+[class*="viewerBadge"],
+[class*="stAppHeader"] a,
+[data-testid="stDecoration"],
+[data-testid="stStatusWidget"],
+a[href*="github.com"],
+a[href*="streamlit.io"],
+a[href*="share.streamlit.io"] {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
 
-    /* 2. Ocultar todo el pie de página inferior (footer) */
-    footer,
-    [data-testid="stFooter"] {
-        display: none !important;
-        visibility: hidden !important;
-    }
+/* 2. Ocultar todo el pie de página inferior (footer) */
+footer,
+[data-testid="stFooter"] {
+    display: none !important;
+    visibility: hidden !important;
+}
 
-    /* 3. Asegurar que SOLO el menú nativo de 3 puntos permanezca visible y funcional */
-    #MainMenu,
-    [data-testid="stMainMenu"],
-    button[aria-label="Main menu"],
-    button[aria-label="Menú principal"] {
-        display: inline-flex !important;
-        visibility: visible !important;
-        opacity: 1 !important;
-        pointer-events: auto !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+/* 3. Asegurar que SOLO el menú nativo de 3 puntos permanezca visible y funcional */
+#MainMenu,
+[data-testid="stMainMenu"],
+button[aria-label="Main menu"],
+button[aria-label="Menú principal"] {
+    display: inline-flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+}
+</style>
+""", unsafe_allow_html=True)
 
-    print("[LOG SERVIDOR] TEST 2: Intentando conectar a la base de datos...", flush=True)
+print("[LOG SERVIDOR] TEST 2: Intentando conectar a la base de datos...", flush=True)
 
-    # Inicializar tablas en la base de datos (PostgreSQL / SQLite)
-    init_db()
+# Inicializar tablas en la base de datos (PostgreSQL / SQLite)
+init_db()
 
-    # Abrir sesión de base de datos
-    db = SessionLocal()
+# Abrir sesión de base de datos
+db = SessionLocal()
 
-    print("[LOG SERVIDOR] TEST 3: BBDD conectada correctamente", flush=True)
+print("[LOG SERVIDOR] TEST 3: BBDD conectada correctamente", flush=True)
 
 try:
     st.title("🔪 Estás Muerto")
