@@ -3,10 +3,11 @@ from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import sessionmaker, declarative_base
 
 def get_database_url() -> str:
-    """Busca la URL de la base de datos en st.secrets (Streamlit Cloud) y luego en os.environ."""
+    """Busca la URL de la base de datos en st.secrets (Streamlit Cloud, incluso en secciones anidadas) y luego en os.environ."""
     try:
         import streamlit as st
         if hasattr(st, "secrets"):
+            # 1. Búsqueda directa en la raíz
             if "DATABASE_URL" in st.secrets:
                 return str(st.secrets["DATABASE_URL"]).strip()
             if "database_url" in st.secrets:
@@ -15,6 +16,19 @@ def get_database_url() -> str:
                 return str(st.secrets["postgres"]["url"]).strip()
             if "db" in st.secrets and "url" in st.secrets["db"]:
                 return str(st.secrets["db"]["url"]).strip()
+
+            # 2. Búsqueda recursiva en cualquier sección anidada (ej: [connections.gsheets] o [postgres])
+            for k, v in st.secrets.items():
+                try:
+                    if hasattr(v, "__getitem__"):
+                        if "DATABASE_URL" in v:
+                            return str(v["DATABASE_URL"]).strip()
+                        if "database_url" in v:
+                            return str(v["database_url"]).strip()
+                        if "url" in v and "postgres" in str(v["url"]).lower():
+                            return str(v["url"]).strip()
+                except Exception:
+                    pass
     except Exception:
         pass
 
