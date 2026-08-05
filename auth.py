@@ -43,10 +43,14 @@ def register_user(db: Session, nombre: str, email: str, password: str) -> User:
         email=email_clean,
         password_hash=pwd_hash
     )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    return user
+    try:
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        return user
+    except Exception:
+        db.rollback()
+        raise
 
 
 def authenticate_user(db: Session, email: str, password: str) -> User | None:
@@ -58,8 +62,11 @@ def authenticate_user(db: Session, email: str, password: str) -> User | None:
     if verify_password(password, user.password_hash):
         # Auto-actualizar hash si la cuenta venía en texto plano
         if user.password_hash == password:
-            user.password_hash = hash_password(password)
-            db.commit()
+            try:
+                user.password_hash = hash_password(password)
+                db.commit()
+            except Exception:
+                db.rollback()
         return user
     return None
 
@@ -74,9 +81,13 @@ def request_password_reset(db: Session, email: str) -> tuple[str, User]:
     token = f"{secrets.randbelow(900000) + 100000}"
     user.reset_token = token
     user.reset_token_expires = datetime.utcnow() + timedelta(minutes=15)
-    db.commit()
-    db.refresh(user)
-    return token, user
+    try:
+        db.commit()
+        db.refresh(user)
+        return token, user
+    except Exception:
+        db.rollback()
+        raise
 
 
 def reset_password_with_token(db: Session, email: str, token: str, new_password: str) -> bool:
@@ -92,11 +103,15 @@ def reset_password_with_token(db: Session, email: str, token: str, new_password:
     if user.reset_token_expires < datetime.utcnow():
         raise ValueError("El código de recuperación ha caducado. Por favor solicita uno nuevo.")
 
-    user.password_hash = hash_password(new_password)
-    user.reset_token = None
-    user.reset_token_expires = None
-    db.commit()
-    return True
+    try:
+        user.password_hash = hash_password(new_password)
+        user.reset_token = None
+        user.reset_token_expires = None
+        db.commit()
+        return True
+    except Exception:
+        db.rollback()
+        raise
 
 
 def obtener_estadisticas_usuario(db: Session, user_id: int) -> dict:

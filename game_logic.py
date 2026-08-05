@@ -84,8 +84,12 @@ def generar_ciclo_cerrado(db: Session, room_id: int) -> list[Assignment]:
             room.fecha_inicio = now
         room.ultima_rotacion = now
 
-    db.commit()
-    return nuevas_asignaciones
+    try:
+        db.commit()
+        return nuevas_asignaciones
+    except Exception:
+        db.rollback()
+        raise
 
 
 def calcular_proxima_rotacion(room: Room) -> datetime | None:
@@ -198,15 +202,19 @@ def registrar_baja(db: Session, room_id: int, asesino_player_id: int) -> dict:
         if room:
             room.estado = "finalizada"
 
-    db.commit()
+    try:
+        db.commit()
 
-    return {
-        "partida_finalizada": partida_finalizada,
-        "ganador": ganador,
-        "siguiente_victima_id": siguiente_victima_id,
-        "siguiente_objeto": siguiente_objeto,
-        "vivos_restantes": len(vivos_restantes)
-    }
+        return {
+            "partida_finalizada": partida_finalizada,
+            "ganador": ganador,
+            "siguiente_victima_id": siguiente_victima_id,
+            "siguiente_objeto": siguiente_objeto,
+            "vivos_restantes": len(vivos_restantes)
+        }
+    except Exception:
+        db.rollback()
+        raise
 
 
 def ejecutar_cambio_arma(db: Session, room_id: int, player_id: int, es_host: bool = False) -> tuple[str, int]:
@@ -251,8 +259,12 @@ def ejecutar_cambio_arma(db: Session, room_id: int, player_id: int, es_host: boo
     # Sincronizar total de cambios restantes
     player.cambios_restantes = (getattr(player, "cambios_gratuitos", 0) or 0) + (getattr(player, "cambios_bonus", 0) or 0)
 
-    db.commit()
-    return nuevo_objeto, player.cambios_restantes
+    try:
+        db.commit()
+        return nuevo_objeto, player.cambios_restantes
+    except Exception:
+        db.rollback()
+        raise
 
 
 def solicitar_baja(db: Session, room_id: int, asesino_player_id: int) -> KillClaim:
@@ -277,10 +289,14 @@ def solicitar_baja(db: Session, room_id: int, asesino_player_id: int) -> KillCla
         victima_id=asig.victima_id,
         estado="pendiente"
     )
-    db.add(claim)
-    db.commit()
-    db.refresh(claim)
-    return claim
+    try:
+        db.add(claim)
+        db.commit()
+        db.refresh(claim)
+        return claim
+    except Exception:
+        db.rollback()
+        raise
 
 
 def confirmar_baja_claim(db: Session, claim_id: int) -> dict:
@@ -290,15 +306,23 @@ def confirmar_baja_claim(db: Session, claim_id: int) -> dict:
         raise ValueError("Solicitud no válida o ya procesada.")
 
     res = registrar_baja(db, claim.room_id, claim.asesino_id)
-    claim.estado = "confirmado"
-    db.commit()
-    return res
+    try:
+        claim.estado = "confirmado"
+        db.commit()
+        return res
+    except Exception:
+        db.rollback()
+        raise
 
 
 def rechazar_baja_claim(db: Session, claim_id: int):
     """Rechaza la solicitud de baja pendiente."""
     claim = db.query(KillClaim).get(claim_id)
     if claim:
-        claim.estado = "rechazado"
-        db.commit()
+        try:
+            claim.estado = "rechazado"
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
 
