@@ -4,6 +4,7 @@ import pandas as pd
 import time
 from datetime import datetime
 import email_service
+from sqlalchemy import text
 import database
 from database import SessionLocal, init_db, engine
 from models import User, Room, Player, Assignment, GameObject, HistoryLog, KillClaim
@@ -290,7 +291,14 @@ if not current_user:
             user_count = db.query(User).count()
             st.success(f"✅ Conexión exitosa a la base de datos. Hay **{user_count}** usuario(s) registrados.")
             if db_engine == "sqlite":
-                st.warning("⚠️ La app está funcionando sobre **SQLite local (efímero)**. Si tenías datos en Supabase, verifica que la variable `DATABASE_URL` esté bien configurada en `Settings -> Secrets` de Streamlit Cloud.")
+                st.warning("⚠️ La app está funcionando sobre **SQLite local (efímero)**.")
+                keys_found = []
+                try:
+                    if hasattr(st, "secrets"):
+                        keys_found = list(st.secrets.keys())
+                except Exception:
+                    pass
+                st.info(f"🔑 **Claves detectadas actualmente en Secrets de Streamlit Cloud:** `{keys_found}`\n\nSi no ves `DATABASE_URL` en la lista superior, debes ir a `Settings -> Secrets` en Streamlit Cloud y guardar:\n```toml\nDATABASE_URL = \"postgresql://postgres:TU_CLAVE@db.wkqvukcszqayawzylyel.supabase.co:5432/postgres\"\n```")
         except Exception as ex:
             st.error(f"❌ Error al conectar con la base de datos: `{ex}`")
 
