@@ -2,8 +2,26 @@ import os
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-# URL de conexión: por defecto usa SQLite local para pruebas, o la variable DATABASE_URL (PostgreSQL) en producción
-DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./estas_muerto.db")
+def get_database_url() -> str:
+    """Busca la URL de la base de datos en st.secrets (Streamlit Cloud) y luego en os.environ."""
+    try:
+        import streamlit as st
+        if hasattr(st, "secrets"):
+            if "DATABASE_URL" in st.secrets:
+                return str(st.secrets["DATABASE_URL"]).strip()
+            if "database_url" in st.secrets:
+                return str(st.secrets["database_url"]).strip()
+            if "postgres" in st.secrets and "url" in st.secrets["postgres"]:
+                return str(st.secrets["postgres"]["url"]).strip()
+            if "db" in st.secrets and "url" in st.secrets["db"]:
+                return str(st.secrets["db"]["url"]).strip()
+    except Exception:
+        pass
+
+    return os.environ.get("DATABASE_URL", "sqlite:///./estas_muerto.db").strip()
+
+
+DATABASE_URL = get_database_url()
 
 # Soporte para URLs de PostgreSQL en Heroku/Render/Supabase (que usan postgres:// en lugar de postgresql://)
 if DATABASE_URL.startswith("postgres://"):
@@ -16,6 +34,7 @@ if DATABASE_URL.startswith("sqlite"):
 engine = create_engine(
     DATABASE_URL,
     connect_args=connect_args,
+    pool_pre_ping=True,  # Evita desconexiones por inactividad comprobando la conexión automáticamente
     echo=False
 )
 
