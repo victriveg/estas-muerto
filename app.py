@@ -3,7 +3,6 @@ import streamlit.components.v1 as components
 import pandas as pd
 import time
 from datetime import datetime
-import email_service
 from sqlalchemy import text
 import database
 from database import SessionLocal, init_db, engine
@@ -330,44 +329,7 @@ if not current_user:
                 st.warning("Rellena todos los campos.")
 
         st.markdown("---")
-        with st.expander("🔑 ¿Olvidaste tu contraseña?", expanded=False):
-            st.caption("Solicita un código de recuperación de 6 dígitos que enviaremos a tu correo electrónico.")
-            with st.form("form_request_reset", clear_on_submit=False):
-                reset_email = st.text_input("Ingresa tu Correo Electrónico", key="reset_email_input")
-                btn_send_reset = st.form_submit_button("📩 Enviar Código de Recuperación", use_container_width=True)
-            
-            if btn_send_reset:
-                re_clean = reset_email.strip() if reset_email else ""
-                if re_clean:
-                    try:
-                        token, u_reset = auth.request_password_reset(db, re_clean)
-                        email_service.send_password_reset_email(u_reset.email, u_reset.nombre, token)
-                        st.success(f"📩 Código de 6 dígitos enviado a **{u_reset.email}**. Revisa tu bandeja de entrada.")
-                    except Exception as e:
-                        st.error(f"Error: {e}")
-                else:
-                    st.warning("Escribe tu correo electrónico.")
 
-            st.markdown("---")
-            st.caption("Ingresa el código OTP recibido para cambiar tu contraseña:")
-            with st.form("form_confirm_reset", clear_on_submit=False):
-                col_r1, col_r2 = st.columns(2)
-                reset_code_in = col_r1.text_input("Código de 6 dígitos", key="reset_code_in")
-                new_pass_in = col_r2.text_input("Nueva Contraseña", type="password", key="new_pass_in")
-                btn_confirm_reset = st.form_submit_button("🔒 Restablecer Contraseña", type="primary", use_container_width=True)
-
-            if btn_confirm_reset:
-                re_clean = reset_email.strip() if reset_email else ""
-                rc_clean = reset_code_in.strip() if reset_code_in else ""
-                np_clean = new_pass_in.strip() if new_pass_in else ""
-                if re_clean and rc_clean and np_clean:
-                    try:
-                        auth.reset_password_with_token(db, re_clean, rc_clean, np_clean)
-                        st.success("🎉 ¡Contraseña restablecida con éxito! Ya puedes iniciar sesión con tu nueva clave.")
-                    except Exception as e:
-                        st.error(f"Error al restablecer: {e}")
-                else:
-                    st.warning("Completa todos los campos para restablecer la contraseña.")
 
     st.markdown("---")
     with st.expander("🔍 Diagnóstico de Conexión a Base de Datos", expanded=False):
@@ -854,17 +816,6 @@ with tab_gestion:
                             st.session_state["confirmar_cambio_arma_dialog"] = False
                             try:
                                 nuevo_objeto, cambios_left = game_logic.ejecutar_cambio_arma(db, room_id, player_active.id)
-                                asig_obj = db.query(Assignment).filter_by(room_id=room_id, asesino_id=player_active.id).first()
-                                victima_obj = db.query(Player).get(asig_obj.victima_id) if asig_obj else None
-
-                                email_service.send_item_change_email(
-                                    to_email=current_user.email,
-                                    nombre_jugador=current_user.nombre,
-                                    nuevo_objeto=nuevo_objeto,
-                                    cambios_restantes=cambios_left,
-                                    nombre_victima=victima_obj.user.nombre if victima_obj else None
-                                )
-
                                 st.session_state["msg_feedback_arma"] = f"🎉 ¡Arma cambiada con éxito! Tu nueva arma secreta es **{nuevo_objeto}**. Te quedan {cambios_left} cambios de arma."
                                 st.rerun()
                             except Exception as e:
@@ -884,17 +835,6 @@ with tab_gestion:
                             st.session_state["confirmar_cambio_arma_dialog"] = False
                             try:
                                 nuevo_objeto, cambios_left = game_logic.ejecutar_cambio_arma(db, room_id, player_active.id)
-                                asig_obj = db.query(Assignment).filter_by(room_id=room_id, asesino_id=player_active.id).first()
-                                victima_obj = db.query(Player).get(asig_obj.victima_id) if asig_obj else None
-
-                                email_service.send_item_change_email(
-                                    to_email=current_user.email,
-                                    nombre_jugador=current_user.nombre,
-                                    nuevo_objeto=nuevo_objeto,
-                                    cambios_restantes=cambios_left,
-                                    nombre_victima=victima_obj.user.nombre if victima_obj else None
-                                )
-
                                 st.session_state["msg_feedback_arma"] = f"🎉 ¡Arma cambiada con éxito! Tu nueva arma secreta es **{nuevo_objeto}**. Te quedan {cambios_left} cambios de arma."
                                 st.rerun()
                             except Exception as e:
@@ -925,20 +865,7 @@ with tab_gestion:
                 try:
                     nuevo_objeto, cambios_left = game_logic.ejecutar_cambio_arma(db, room_id, player_sel_id, es_host=True)
                     player_obj = db.query(Player).get(player_sel_id)
-                    asig_obj = db.query(Assignment).filter_by(room_id=room_id, asesino_id=player_sel_id).first()
-                    victima_obj = db.query(Player).get(asig_obj.victima_id) if asig_obj else None
-
-                    exito_email = email_service.send_item_change_email(
-                        to_email=player_obj.user.email,
-                        nombre_jugador=player_obj.user.nombre,
-                        nuevo_objeto=nuevo_objeto,
-                        cambios_restantes=cambios_left,
-                        nombre_victima=victima_obj.user.nombre if victima_obj else None
-                    )
-
                     st.success(f"✅ ¡Cambio realizado por el Host! La nueva arma de **{player_obj.user.nombre}** es **{nuevo_objeto}**.")
-                    if exito_email:
-                        st.info(f"📩 Correo enviado a {player_obj.user.email}.")
                     st.rerun()
                 except Exception as e:
                     st.error(f"Error al ejecutar el cambio: {e}")
@@ -957,29 +884,9 @@ with tab_gestion:
             try:
                 asignaciones = game_logic.generar_ciclo_cerrado(db, room_id)
                 st.success("✅ ¡Rotación realizada correctamente!")
-
-                vivos_nombres = [p.user.nombre for p in db.query(Player).filter_by(room_id=room_id, estado="vivo").all()]
-                progress = st.progress(0)
-                for idx, asig in enumerate(asignaciones):
-                    if idx > 0:
-                        time.sleep(1)
-                    asesino_p = db.query(Player).get(asig.asesino_id)
-                    victima_p = db.query(Player).get(asig.victima_id)
-
-                    html_msg = email_service.build_assignment_email_html(
-                        nombre_asesino=asesino_p.user.nombre,
-                        nombre_victima=victima_p.user.nombre,
-                        objeto=asig.objeto,
-                        vivos_lista=vivos_nombres,
-                        historial_bajas=[],
-                        modo_ciego=room_actual.modo_ciego
-                    )
-                    email_service.send_email(
-                        to_email=asesino_p.user.email,
-                        subject="🔄 [ROTACIÓN DE OBJETIVOS] Tu nueva víctima y arma - Estás Muerto",
-                        body_html=html_msg
-                    )
-                    progress.progress((idx + 1) / len(asignaciones))
+                st.rerun()
+            except Exception as e:
+                st.error(f"Error en la rotación: {e}")
 
                 st.success("📩 Notificaciones de rotación enviadas a todos los supervivientes.")
                 st.rerun()
@@ -1113,74 +1020,17 @@ if is_host and tab_setup:
             objs_disponibles = game_logic.obtener_objetos_disponibles(db, room_id)
             st.dataframe(pd.DataFrame([{"Objeto": o} for o in objs_disponibles]), hide_index=True, use_container_width=True)
 
-        # D. Diagnóstico y Prueba de Envío de Correo (SMTP)
-        with st.expander("✉️ Diagnóstico y Prueba de Envío de Correo (SMTP)", expanded=False):
-            sender_email, sender_password, smtp_server, smtp_port = email_service.get_smtp_credentials()
-            if sender_email and sender_password and sender_email != "tu_cuenta@gmail.com":
-                st.success(f"✅ **Credenciales SMTP detectadas:**\n- **Remitente:** `{sender_email}`\n- **Servidor:** `{smtp_server}:{smtp_port}`")
-            else:
-                st.warning("⚠️ **No se detectaron credenciales SMTP válidas.** La aplicación está funcionando en modo simulación.")
-                st.info("""
-                **Para enviar correos reales, añade la sección `[smtp]` en tu `.streamlit/secrets.toml` o en los Secrets de Streamlit Cloud:**
-                ```toml
-                [smtp]
-                sender_email = "tu_correo@gmail.com"
-                sender_password = "tu_contraseña_de_aplicacion"
-                smtp_server = "smtp.gmail.com"
-                smtp_port = 587
-                ```
-                💡 *Nota sobre Gmail:* Google requiere usar una **Contraseña de Aplicación de 16 caracteres** (no tu clave habitual). La generas en tu Cuenta de Google -> Seguridad -> Verificación en 2 pasos -> Contraseñas de aplicaciones.
-                """)
-
-            test_dest = st.text_input("Correo de prueba de envío:", value=current_user.email if current_user else "", key="smtp_test_dest")
-            if st.button("🧪 Enviar Correo de Prueba", use_container_width=True, key="btn_send_smtp_test"):
-                if test_dest:
-                    res_test = email_service.send_email(
-                        to_email=test_dest.strip(),
-                        subject="🧪 [PRUEBA] Verificación SMTP - Estás Muerto",
-                        body_html="<h3>✅ Conexión SMTP Exitosa</h3><p>Si recibes este correo, tu configuración de correo funciona perfectamente.</p>"
-                    )
-                    if res_test:
-                        st.success("✅ Prueba de correo procesada.")
-                else:
-                    st.warning("Escribe un correo de destino.")
-
         st.markdown("---")
         # E. Iniciar Partida (Restringido al Host)
         st.subheader("🚀 Iniciar Partida & Repartir Víctimas")
         st.caption("Al pulsar este botón se iniciará el ciclo cerrado de asesinatos para los jugadores vivos de esta sala.")
 
         if is_host:
-            if st.button("💥 INICIAR PARTIDA Y ENVIAR CORREOS", type="primary", use_container_width=True):
+            if st.button("💥 INICIAR PARTIDA", type="primary", use_container_width=True):
                 try:
                     asignaciones = game_logic.generar_ciclo_cerrado(db, room_id)
                     st.success("✅ ¡Partida iniciada! Se han generado los ciclos de asignación.")
-
-                    vivos_nombres = [p.user.nombre for p in db.query(Player).filter_by(room_id=room_id, estado="vivo").all()]
-                    progress = st.progress(0)
-                    for idx, asig in enumerate(asignaciones):
-                        if idx > 0:
-                            time.sleep(1)
-                        asesino_p = db.query(Player).get(asig.asesino_id)
-                        victima_p = db.query(Player).get(asig.victima_id)
-                        
-                        html_msg = email_service.build_assignment_email_html(
-                            nombre_asesino=asesino_p.user.nombre,
-                            nombre_victima=victima_p.user.nombre,
-                            objeto=asig.objeto,
-                            vivos_lista=vivos_nombres,
-                            historial_bajas=[],
-                            modo_ciego=room_actual.modo_ciego
-                        )
-                        email_service.send_email(
-                            to_email=asesino_p.user.email,
-                            subject="🔪 [INICIO DE PARTIDA] Tu objetivo ha sido asignado - Estás Muerto",
-                            body_html=html_msg
-                        )
-                        progress.progress((idx + 1) / len(asignaciones))
-                    
                     st.balloons()
-                    st.success("📩 Correos secretos de inicio enviados.")
                     st.rerun()
                 except Exception as e:
                     st.error(f"Error al iniciar partida: {e}")
