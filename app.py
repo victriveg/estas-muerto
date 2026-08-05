@@ -177,7 +177,7 @@ try:
     if not current_user_id and "u" in url_params:
         param_u = url_params.get("u")
         if param_u and str(param_u).isdigit():
-        try:
+            try:
                 u_cand = db.query(User).get(int(param_u))
                 if u_cand:
                     st.session_state["user_id"] = u_cand.id
@@ -235,23 +235,23 @@ try:
                 try:
                         if hasattr(st, "secrets"):
                             keys_found = list(st.secrets.keys())
-                    except Exception:
-                        pass
-                    st.info(f"🔑 **Claves detectadas actualmente en Secrets de Streamlit Cloud:** `{keys_found}`\n\nSi no ves `DATABASE_URL` en la lista superior, debes ir a `Settings -> Secrets` en Streamlit Cloud y guardar:\n```toml\nDATABASE_URL = \"postgresql://postgres:TU_CLAVE@db.wkqvukcszqayawzylyel.supabase.co:5432/postgres\"\n```")
-            except Exception as ex:
-                st.error(f"❌ Error al conectar con la base de datos: `{ex}`")
-                err_str = str(ex)
-                if "could not translate host name" in err_str or "No address associated with hostname" in err_str or "supabase.co" in err_str:
-                    st.warning("""
-                    ⚠️ **Causa detectada: La URL Directa de Supabase (`db.xxx.supabase.co`) es solo IPv6 y Streamlit Cloud opera en una red IPv4.**
-                
-                    👉 **Solución rápida (Usar Supabase Connection Pooler en puerto 6543):**
-                    1. Entra a tu proyecto en **[app.supabase.com](https://app.supabase.com)**.
-                    2. Ve a **Project Settings** ➔ **Database** ➔ **Connection String**.
-                    3. Cambia la opción a **Session** o **Transaction Pooler** (en formato URI).
-                    4. Copia la URL que usa el servidor pooler y puerto `6543` (tendrá un formato como `postgresql://postgres.wkqvukcszqayawzylyel:TU_CLAVE@aws-0-eu-central-1.pooler.supabase.com:6543/postgres`).
-                    5. Reemplaza `DATABASE_URL` en `Settings ➔ Secrets` de Streamlit Cloud con esa nueva URL.
-                    """)
+                except Exception:
+                    pass
+                st.info(f"🔑 **Claves detectadas actualmente en Secrets de Streamlit Cloud:** `{keys_found}`\n\nSi no ves `DATABASE_URL` en la lista superior, debes ir a `Settings -> Secrets` en Streamlit Cloud y guardar:\n```toml\nDATABASE_URL = \"postgresql://postgres:TU_CLAVE@db.wkqvukcszqayawzylyel.supabase.co:5432/postgres\"\n```")
+        except Exception as ex:
+            st.error(f"❌ Error al conectar con la base de datos: `{ex}`")
+            err_str = str(ex)
+            if "could not translate host name" in err_str or "No address associated with hostname" in err_str or "supabase.co" in err_str:
+                st.warning("""
+                ⚠️ **Causa detectada: La URL Directa de Supabase (`db.xxx.supabase.co`) es solo IPv6 y Streamlit Cloud opera en una red IPv4.**
+            
+                👉 **Solución rápida (Usar Supabase Connection Pooler en puerto 6543):**
+                1. Entra a tu proyecto en **[app.supabase.com](https://app.supabase.com)**.
+                2. Ve a **Project Settings** ➔ **Database** ➔ **Connection String**.
+                3. Cambia la opción a **Session** o **Transaction Pooler** (en formato URI).
+                4. Copia la URL que usa el servidor pooler y puerto `6543` (tendrá un formato como `postgresql://postgres.wkqvukcszqayawzylyel:TU_CLAVE@aws-0-eu-central-1.pooler.supabase.com:6543/postgres`).
+                5. Reemplaza `DATABASE_URL` en `Settings ➔ Secrets` de Streamlit Cloud con esa nueva URL.
+                """)
 
         with tab_register:
             st.subheader("📝 Crear Cuenta")
@@ -275,7 +275,7 @@ try:
                 elif len(pass_clean) < 4:
                     st.error("❌ La contraseña debe tener al menos 4 caracteres.")
                 else:
-                try:
+                    try:
                         u = auth.register_user(db, name_clean, email_clean, pass_clean)
                         if st.session_state.get("user_id") != u.id:
                             st.session_state["user_id"] = u.id
@@ -709,8 +709,8 @@ try:
                                     nuevo_objeto, cambios_left = game_logic.ejecutar_cambio_arma(db, room_id, player_active.id)
                                     st.session_state["msg_feedback_arma"] = f"🎉 ¡Arma cambiada con éxito! Tu nueva arma secreta es **{nuevo_objeto}**. Te quedan {cambios_left} cambios de arma."
                                     st.rerun()
-                                except Exception as e:
-                                    st.error(f"Error al cambiar arma: {e}")
+                            except Exception as e:
+                                st.error(f"Error al cambiar arma: {e}")
 
                             if col_c2.button("❌ Cancelar", use_container_width=True, key="btn_cancel_dialog"):
                                 st.session_state["confirmar_cambio_arma_dialog"] = False
@@ -728,8 +728,8 @@ try:
                                     nuevo_objeto, cambios_left = game_logic.ejecutar_cambio_arma(db, room_id, player_active.id)
                                     st.session_state["msg_feedback_arma"] = f"🎉 ¡Arma cambiada con éxito! Tu nueva arma secreta es **{nuevo_objeto}**. Te quedan {cambios_left} cambios de arma."
                                     st.rerun()
-                                except Exception as e:
-                                    st.error(f"Error al cambiar arma: {e}")
+                            except Exception as e:
+                                st.error(f"Error al cambiar arma: {e}")
 
                             if col_c2.button("❌ Cancelar", use_container_width=True, key="btn_cancel_fallback"):
                                 st.session_state["confirmar_cambio_arma_dialog"] = False
@@ -753,11 +753,11 @@ try:
                 player_sel_id = dict_cambios[player_sel_key]
 
                 if st.button("🎲 Ejecutar Cambio a este Jugador (Host)", use_container_width=True, key="btn_host_change_player_weapon"):
-                try:
-                        nuevo_objeto, cambios_left = game_logic.ejecutar_cambio_arma(db, room_id, player_sel_id, es_host=True)
-                        player_obj = db.query(Player).get(player_sel_id)
-                        st.success(f"✅ ¡Cambio realizado por el Host! La nueva arma de **{player_obj.user.nombre}** es **{nuevo_objeto}**.")
-                        st.rerun()
+                    try:
+                            nuevo_objeto, cambios_left = game_logic.ejecutar_cambio_arma(db, room_id, player_sel_id, es_host=True)
+                            player_obj = db.query(Player).get(player_sel_id)
+                            st.success(f"✅ ¡Cambio realizado por el Host! La nueva arma de **{player_obj.user.nombre}** es **{nuevo_objeto}**.")
+                            st.rerun()
                     except Exception as e:
                         st.error(f"Error al ejecutar el cambio: {e}")
             else:
@@ -772,7 +772,7 @@ try:
 
         if is_host:
             if st.button("🔀 Ejecutar Rotación Manual de Sala", type="primary", use_container_width=True):
-            try:
+                try:
                     asignaciones = game_logic.generar_ciclo_cerrado(db, room_id)
                     st.success("✅ ¡Rotación realizada correctamente!")
                     st.rerun()
@@ -918,15 +918,15 @@ try:
 
             if is_host:
                 if st.button("💥 INICIAR PARTIDA", type="primary", use_container_width=True):
-                try:
+                    try:
                         asignaciones = game_logic.generar_ciclo_cerrado(db, room_id)
                         st.success("✅ ¡Partida iniciada! Se han generado los ciclos de asignación.")
                         st.balloons()
                         st.rerun()
                     except Exception as e:
                         st.error(f"Error al iniciar partida: {e}")
-            else:
-                st.warning(f"🔒 El inicio de la partida requiere permisos de Host. Contacta a **{host_nombre}** para iniciar la partida.")
+                else:
+                    st.warning(f"🔒 El inicio de la partida requiere permisos de Host. Contacta a **{host_nombre}** para iniciar la partida.")
 
 
 
