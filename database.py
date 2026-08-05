@@ -2,62 +2,100 @@ import os
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import sessionmaker, declarative_base
 
+Base = declarative_base()
+
+_engine = None
+_SessionFactory = None
+
+
 def get_database_url() -> str:
     """Busca la URL de la base de datos en st.secrets (Streamlit Cloud, incluso en secciones anidadas) y luego en os.environ."""
     try:
         import streamlit as st
-        if hasattr(st, "secrets"):
-            # 1. Búsqueda directa en la raíz
-            if "DATABASE_URL" in st.secrets:
-                return str(st.secrets["DATABASE_URL"]).strip()
-            if "database_url" in st.secrets:
-                return str(st.secrets["database_url"]).strip()
-            if "postgres" in st.secrets and "url" in st.secrets["postgres"]:
-                return str(st.secrets["postgres"]["url"]).strip()
-            if "db" in st.secrets and "url" in st.secrets["db"]:
-                return str(st.secrets["db"]["url"]).strip()
+        try:
+            if hasattr(st, "secrets"):
+                if "DATABASE_URL" in st.secrets:
+                    url = str(st.secrets["DATABASE_URL"]).strip()
+                    if url: return url
+                if "database_url" in st.secrets:
+                    url = str(st.secrets["database_url"]).strip()
+                    if url: return url
+                if "postgres" in st.secrets and "url" in st.secrets["postgres"]:
+                    url = str(st.secrets["postgres"]["url"]).strip()
+                    if url: return url
+                if "db" in st.secrets and "url" in st.secrets["db"]:
+                    url = str(st.secrets["db"]["url"]).strip()
+                    if url: return url
 
-            # 2. Búsqueda recursiva en cualquier sección anidada (ej: [connections.gsheets] o [postgres])
-            for k, v in st.secrets.items():
-                try:
-                    if hasattr(v, "__getitem__"):
-                        if "DATABASE_URL" in v:
-                            return str(v["DATABASE_URL"]).strip()
-                        if "database_url" in v:
-                            return str(v["database_url"]).strip()
-                        if "url" in v and "postgres" in str(v["url"]).lower():
-                            return str(v["url"]).strip()
-                except Exception:
-                    pass
+                for k, v in st.secrets.items():
+                    try:
+                        if hasattr(v, "__getitem__"):
+                            if "DATABASE_URL" in v:
+                                url = str(v["DATABASE_URL"]).strip()
+                                if url: return url
+                            if "database_url" in v:
+                                url = str(v["database_url"]).strip()
+                                if url: return url
+                            if "url" in v and "postgres" in str(v["url"]).lower():
+                                url = str(v["url"]).strip()
+                                if url: return url
+                    except Exception:
+                        pass
+        except Exception:
+            pass
     except Exception:
         pass
 
     return os.environ.get("DATABASE_URL", "sqlite:///./estas_muerto.db").strip()
 
 
-DATABASE_URL = get_database_url()
+def get_engine():
+    """Retorna el motor de SQLAlchemy instanciado perezosamente (lazy) cuando st.secrets está disponible."""
+    global _engine
+    if _engine is None:
+        url = get_database_url()
+        if url.startswith("postgres://"):
+            url = url.replace("postgres://", "postgresql://", 1)
 
-# Soporte para URLs de PostgreSQL en Heroku/Render/Supabase (que usan postgres:// en lugar de postgresql://)
-if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+        connect_args = {}
+        if url.startswith("sqlite"):
+            connect_args = {"check_same_thread": False}
 
-connect_args = {}
-if DATABASE_URL.startswith("sqlite"):
-    connect_args = {"check_same_thread": False}
+        _engine = create_engine(
+            url,
+            connect_args=connect_args,
+            pool_pre_ping=True,
+            echo=False
+        )
+    return _engine
 
-engine = create_engine(
-    DATABASE_URL,
-    connect_args=connect_args,
-    pool_pre_ping=True,  # Evita desconexiones por inactividad comprobando la conexión automáticamente
-    echo=False
-)
 
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
+class LazyEngineProxy:
+    """Proxy para acceder al engine sin instanciarlo antes de que st.secrets esté listo."""
+    @property
+    def name(self):
+        return get_engine().name
+
+    def connect(self, *args, **kwargs):
+        return get_engine().connect(*args, **kwargs)
+
+    def execute(self, *args, **kwargs):
+        return get_engine().execute(*args, **kwargs)
+
+
+engine = LazyEngineProxy()
+
+
+def SessionLocal():
+    """Genera una sesión de base de datos conectando al motor lazy."""
+    global _SessionFactory
+    if _SessionFactory is None:
+        _SessionFactory = sessionmaker(autocommit=False, autoflush=False, bind=get_engine())
+    return _SessionFactory()
 
 
 def get_db():
-    """Generador de sesiones de base de datos para context manager o FastAPI/Streamlit."""
+    """Generador de sesiones de base de datos para context manager."""
     db = SessionLocal()
     try:
         yield db
@@ -67,30 +105,31 @@ def get_db():
 
 def init_db():
     """Crea las tablas en la base de datos si no existen y auto-migra columnas faltantes."""
+    eng = get_engine()
     import models  # Asegura la carga de los modelos
-    Base.metadata.create_all(bind=engine)
+    Base.metadata.create_all(bind=eng)
 
     try:
-        inspector = inspect(engine)
+        inspector = inspect(eng)
         tables = inspector.get_table_names()
 
         if "users" in tables:
             columns = [c["name"] for c in inspector.get_columns("users")]
-            with engine.connect() as conn:
+            with eng.connect() as conn:
                 if "recibir_correos" not in columns:
-                    if engine.dialect.name == "postgresql":
+                    if eng.dialect.name == "postgresql":
                         conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS recibir_correos BOOLEAN DEFAULT TRUE;"))
                     else:
                         conn.execute(text("ALTER TABLE users ADD COLUMN recibir_correos BOOLEAN DEFAULT 1;"))
 
                 if "reset_token" not in columns:
-                    if engine.dialect.name == "postgresql":
+                    if eng.dialect.name == "postgresql":
                         conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token VARCHAR(255);"))
                     else:
                         conn.execute(text("ALTER TABLE users ADD COLUMN reset_token VARCHAR(255);"))
 
                 if "reset_token_expires" not in columns:
-                    if engine.dialect.name == "postgresql":
+                    if eng.dialect.name == "postgresql":
                         conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_expires TIMESTAMP;"))
                     else:
                         conn.execute(text("ALTER TABLE users ADD COLUMN reset_token_expires DATETIME;"))
@@ -98,9 +137,9 @@ def init_db():
 
         if "rooms" in tables:
             columns = [c["name"] for c in inspector.get_columns("rooms")]
-            with engine.connect() as conn:
+            with eng.connect() as conn:
                 if "modo_ciego" not in columns:
-                    if engine.dialect.name == "postgresql":
+                    if eng.dialect.name == "postgresql":
                         conn.execute(text("ALTER TABLE rooms ADD COLUMN IF NOT EXISTS modo_ciego BOOLEAN DEFAULT FALSE;"))
                     else:
                         conn.execute(text("ALTER TABLE rooms ADD COLUMN modo_ciego BOOLEAN DEFAULT 0;"))
@@ -108,29 +147,29 @@ def init_db():
 
         if "players" in tables:
             columns = [c["name"] for c in inspector.get_columns("players")]
-            with engine.connect() as conn:
+            with eng.connect() as conn:
                 if "cambios_restantes" not in columns:
-                    if engine.dialect.name == "postgresql":
+                    if eng.dialect.name == "postgresql":
                         conn.execute(text("ALTER TABLE players ADD COLUMN IF NOT EXISTS cambios_restantes INTEGER DEFAULT 1;"))
                     else:
                         conn.execute(text("ALTER TABLE players ADD COLUMN cambios_restantes INTEGER DEFAULT 1;"))
                 if "cambios_gratuitos" not in columns:
-                    if engine.dialect.name == "postgresql":
+                    if eng.dialect.name == "postgresql":
                         conn.execute(text("ALTER TABLE players ADD COLUMN IF NOT EXISTS cambios_gratuitos INTEGER DEFAULT 1;"))
                     else:
                         conn.execute(text("ALTER TABLE players ADD COLUMN cambios_gratuitos INTEGER DEFAULT 1;"))
                 if "cambios_bonus" not in columns:
-                    if engine.dialect.name == "postgresql":
+                    if eng.dialect.name == "postgresql":
                         conn.execute(text("ALTER TABLE players ADD COLUMN IF NOT EXISTS cambios_bonus INTEGER DEFAULT 0;"))
                     else:
                         conn.execute(text("ALTER TABLE players ADD COLUMN cambios_bonus INTEGER DEFAULT 0;"))
                 if "cambios_realizados" not in columns:
-                    if engine.dialect.name == "postgresql":
+                    if eng.dialect.name == "postgresql":
                         conn.execute(text("ALTER TABLE players ADD COLUMN IF NOT EXISTS cambios_realizados INTEGER DEFAULT 0;"))
                     else:
                         conn.execute(text("ALTER TABLE players ADD COLUMN cambios_realizados INTEGER DEFAULT 0;"))
                 if "created_at" not in columns:
-                    if engine.dialect.name == "postgresql":
+                    if eng.dialect.name == "postgresql":
                         conn.execute(text("ALTER TABLE players ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;"))
                     else:
                         conn.execute(text("ALTER TABLE players ADD COLUMN created_at DATETIME;"))
