@@ -916,8 +916,11 @@ try:
             # C. Catálogo de Objetos / Armas
             with st.expander("🛋️ Catálogo de Objetos / Armas", expanded=False):
                 if is_host:
-                    nuevo_obj = st.text_input("Nuevo Objeto para esta sala")
-                    if st.button("➕ Agregar Objeto", use_container_width=True):
+                    with st.form("form_nuevo_objeto", clear_on_submit=True):
+                        nuevo_obj = st.text_input("Nuevo Objeto para esta sala", key="input_nuevo_obj")
+                        btn_add_obj = st.form_submit_button("➕ Agregar Objeto", use_container_width=True)
+
+                    if btn_add_obj:
                         if nuevo_obj:
                             o_clean = nuevo_obj.strip()
                             obj_exist = db.query(GameObject).filter(
