@@ -280,6 +280,19 @@ if not current_user:
                 else:
                     st.warning("Completa todos los campos para restablecer la contraseña.")
 
+    st.markdown("---")
+    with st.expander("🔍 Diagnóstico de Conexión a Base de Datos", expanded=False):
+        db_engine = database.engine.name
+        st.write(f"**Motor de base de datos en uso:** `{db_engine}`")
+        try:
+            db.execute(text("SELECT 1"))
+            user_count = db.query(User).count()
+            st.success(f"✅ Conexión exitosa a la base de datos. Hay **{user_count}** usuario(s) registrados.")
+            if db_engine == "sqlite":
+                st.warning("⚠️ La app está funcionando sobre **SQLite local (efímero)**. Si tenías datos en Supabase, verifica que la variable `DATABASE_URL` esté bien configurada en `Settings -> Secrets` de Streamlit Cloud.")
+        except Exception as ex:
+            st.error(f"❌ Error al conectar con la base de datos: `{ex}`")
+
     with tab_register:
         st.subheader("📝 Crear Cuenta")
         with st.form("form_register", clear_on_submit=False):
