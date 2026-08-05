@@ -913,6 +913,53 @@ try:
                         "Cambios Restantes": p.cambios_restantes
                     } for p in inscritos]), hide_index=True, use_container_width=True)
 
+                    if is_host:
+                        st.markdown("---")
+                        st.subheader("🗑️ Eliminar Jugador de la Sala (Solo Host)")
+                        dict_del_p = {f"{p.user.nombre} ({p.user.email}) - {p.estado.upper()}": p.id for p in inscritos}
+                        p_del_key = st.selectbox("Seleccionar jugador a eliminar:", list(dict_del_p.keys()), key="sel_del_player")
+                        p_del_id = dict_del_p[p_del_key]
+
+                        if st.button("🗑️ Eliminar Jugador Seleccionado", use_container_width=True, key="btn_trigger_del_player"):
+                            st.session_state["dialog_del_player"] = True
+
+                        if st.session_state.get("dialog_del_player"):
+                            p_to_del = db.query(Player).get(p_del_id)
+                            if p_to_del:
+                                if hasattr(st, "dialog"):
+                                    @st.dialog("❓ Confirmar Eliminación de Jugador")
+                                    def modal_del_player():
+                                        st.write(f"¿Estás seguro/a de eliminar a **{p_to_del.user.nombre}** de la sala **{room_actual.nombre}**?")
+                                        st.warning("⚠️ Se borrará su participación en la sala y sus asignaciones actuales.")
+                                        dc1, dc2 = st.columns(2)
+                                        if dc1.button("✅ Sí, Eliminar Jugador", type="primary", use_container_width=True, key="dlg_yes_del_p"):
+                                            st.session_state["dialog_del_player"] = False
+                                            db.query(Assignment).filter((Assignment.room_id == room_id) & ((Assignment.asesino_id == p_del_id) | (Assignment.victima_id == p_del_id))).delete()
+                                            db.query(KillClaim).filter((KillClaim.room_id == room_id) & ((KillClaim.asesino_id == p_del_id) | (KillClaim.victima_id == p_del_id))).delete()
+                                            db.delete(p_to_del)
+                                            db.commit()
+                                            st.success(f"Jugador '{p_to_del.user.nombre}' eliminado de la sala.")
+                                            st.rerun()
+                                        if dc2.button("❌ Cancelar", use_container_width=True, key="dlg_no_del_p"):
+                                            st.session_state["dialog_del_player"] = False
+                                            st.rerun()
+                                    modal_del_player()
+                                else:
+                                    with st.container(border=True):
+                                        st.subheader("❓ Confirmar Eliminación de Jugador")
+                                        st.write(f"¿Estás seguro/a de eliminar a **{p_to_del.user.nombre}**?")
+                                        dc1, dc2 = st.columns(2)
+                                        if dc1.button("✅ Sí, Eliminar Jugador", type="primary", use_container_width=True, key="fb_yes_del_p"):
+                                            st.session_state["dialog_del_player"] = False
+                                            db.query(Assignment).filter((Assignment.room_id == room_id) & ((Assignment.asesino_id == p_del_id) | (Assignment.victima_id == p_del_id))).delete()
+                                            db.query(KillClaim).filter((KillClaim.room_id == room_id) & ((KillClaim.asesino_id == p_del_id) | (KillClaim.victima_id == p_del_id))).delete()
+                                            db.delete(p_to_del)
+                                            db.commit()
+                                            st.rerun()
+                                        if dc2.button("❌ Cancelar", use_container_width=True, key="fb_no_del_p"):
+                                            st.session_state["dialog_del_player"] = False
+                                            st.rerun()
+
             # C. Catálogo de Objetos / Armas
             with st.expander("🛋️ Catálogo de Objetos / Armas", expanded=False):
                 if is_host:
@@ -936,10 +983,55 @@ try:
                                 st.success(f"Objeto '{o_clean}' añadido al catálogo.")
                                 st.rerun()
                 else:
-                    st.caption("🔒 Solo el Host de la sala puede agregar nuevos objetos al catálogo.")
+                    st.caption("🔒 Solo el Host de la sala puede administrar objetos del catálogo.")
 
                 objs_disponibles = game_logic.obtener_objetos_disponibles(db, room_id)
                 st.dataframe(pd.DataFrame([{"Objeto": o} for o in objs_disponibles]), hide_index=True, use_container_width=True)
+
+                if is_host and objs_disponibles:
+                    st.markdown("---")
+                    st.subheader("🗑️ Eliminar Objeto del Catálogo (Solo Host)")
+                    obj_del_name = st.selectbox("Seleccionar objeto a eliminar:", objs_disponibles, key="sel_del_object")
+
+                    if st.button("🗑️ Eliminar Objeto Seleccionado", use_container_width=True, key="btn_trigger_del_obj"):
+                        st.session_state["dialog_del_obj"] = True
+
+                    if st.session_state.get("dialog_del_obj"):
+                        if hasattr(st, "dialog"):
+                            @st.dialog("❓ Confirmar Eliminación de Objeto")
+                            def modal_del_obj():
+                                st.write(f"¿Estás seguro/a de eliminar el objeto **{obj_del_name}** del catálogo de esta sala?")
+                                st.warning("⚠️ Dejará de estar disponible en las asignaciones de la sala.")
+                                oc1, oc2 = st.columns(2)
+                                if oc1.button("✅ Sí, Eliminar Objeto", type="primary", use_container_width=True, key="dlg_yes_del_o"):
+                                    st.session_state["dialog_del_obj"] = False
+                                    db.query(GameObject).filter(
+                                        (GameObject.nombre_objeto == obj_del_name) & 
+                                        ((GameObject.room_id == room_id) | (GameObject.room_id == None))
+                                    ).delete()
+                                    db.commit()
+                                    st.success(f"Objeto '{obj_del_name}' eliminado del catálogo.")
+                                    st.rerun()
+                                if oc2.button("❌ Cancelar", use_container_width=True, key="dlg_no_del_o"):
+                                    st.session_state["dialog_del_obj"] = False
+                                    st.rerun()
+                            modal_del_obj()
+                        else:
+                            with st.container(border=True):
+                                st.subheader("❓ Confirmar Eliminación de Objeto")
+                                st.write(f"¿Estás seguro/a de eliminar el objeto **{obj_del_name}**?")
+                                oc1, oc2 = st.columns(2)
+                                if oc1.button("✅ Sí, Eliminar Objeto", type="primary", use_container_width=True, key="fb_yes_del_o"):
+                                    st.session_state["dialog_del_obj"] = False
+                                    db.query(GameObject).filter(
+                                        (GameObject.nombre_objeto == obj_del_name) & 
+                                        ((GameObject.room_id == room_id) | (GameObject.room_id == None))
+                                    ).delete()
+                                    db.commit()
+                                    st.rerun()
+                                if oc2.button("❌ Cancelar", use_container_width=True, key="fb_no_del_o"):
+                                    st.session_state["dialog_del_obj"] = False
+                                    st.rerun()
 
             st.markdown("---")
             # E. Iniciar Partida (Restringido al Host)
