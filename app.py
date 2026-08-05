@@ -18,6 +18,8 @@ st.set_page_config(
     layout="centered"
 )
 
+st.error("TEST 1: App iniciada")
+
 # Refresco automático nativo cada 5 segundos en segundo plano
 try:
     from streamlit_autorefresh import st_autorefresh
@@ -257,11 +259,15 @@ button[aria-label="Menú principal"] {
 </style>
 """, unsafe_allow_html=True)
 
+st.warning("TEST 2: Intentando conectar a la base de datos...")
+
 # Inicializar tablas en la base de datos (PostgreSQL / SQLite)
 init_db()
 
 # Abrir sesión de base de datos
 db = SessionLocal()
+
+st.success("TEST 3: BBDD conectada correctamente")
 
 st.title("🔪 Estás Muerto")
 
