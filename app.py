@@ -282,6 +282,7 @@ if url_pin:
 # ---------------------------------------------------------
 # AUTENTICACIÓN Y GESTIÓN DE SESIÓN DE USUARIO
 # ---------------------------------------------------------
+st.info("TEST 4: Entrando a la lógica de autenticación")
 current_user_id = st.session_state.get("user_id")
 
 # Intentar recuperar sesión persistente desde parámetro URL si no hay sesión en memoria
@@ -297,6 +298,7 @@ if not current_user_id and "u" in url_params:
             pass
 
 current_user = db.query(User).get(current_user_id) if current_user_id else None
+st.warning("TEST 5: Consulta a base de datos finalizada")
 
 if not current_user:
     st.info("👋 Por favor inicia sesión o regístrate para acceder al panel del juego.")
@@ -1249,6 +1251,8 @@ with tab_perfil:
         st.dataframe(pd.DataFrame(historial_salas), hide_index=True, use_container_width=True)
     else:
         st.caption("Aún no te has inscrito en ninguna sala.")
+
+st.success("TEST 6: Fin del script")
 
 # Cerrar sesión DB al final de la ejecución
 db.close()
