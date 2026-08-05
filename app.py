@@ -17,7 +17,7 @@ st.set_page_config(
     layout="centered"
 )
 
-st.error("TEST 1: App iniciada")
+print("[LOG SERVIDOR] TEST 1: App iniciada", flush=True)
 
 # Refresco automático nativo cada 5 segundos en segundo plano
 try:
@@ -258,7 +258,7 @@ button[aria-label="Menú principal"] {
 </style>
 """, unsafe_allow_html=True)
 
-st.warning("TEST 2: Intentando conectar a la base de datos...")
+print("[LOG SERVIDOR] TEST 2: Intentando conectar a la base de datos...", flush=True)
 
 # Inicializar tablas en la base de datos (PostgreSQL / SQLite)
 init_db()
@@ -266,7 +266,7 @@ init_db()
 # Abrir sesión de base de datos
 db = SessionLocal()
 
-st.success("TEST 3: BBDD conectada correctamente")
+print("[LOG SERVIDOR] TEST 3: BBDD conectada correctamente", flush=True)
 
 st.title("🔪 Estás Muerto")
 
@@ -281,7 +281,7 @@ if url_pin:
 # ---------------------------------------------------------
 # AUTENTICACIÓN Y GESTIÓN DE SESIÓN DE USUARIO
 # ---------------------------------------------------------
-st.info("TEST 4: Entrando a la lógica de autenticación")
+print("[LOG SERVIDOR] TEST 4: Entrando a la lógica de autenticación", flush=True)
 current_user_id = st.session_state.get("user_id")
 
 # Intentar recuperar sesión persistente desde parámetro URL si no hay sesión en memoria
@@ -297,7 +297,7 @@ if not current_user_id and "u" in url_params:
             pass
 
 current_user = db.query(User).get(current_user_id) if current_user_id else None
-st.warning("TEST 5: Consulta a base de datos finalizada")
+print("[LOG SERVIDOR] TEST 5: Consulta a base de datos finalizada", flush=True)
 
 if not current_user:
     st.info("👋 Por favor inicia sesión o regístrate para acceder al panel del juego.")
@@ -1102,7 +1102,7 @@ with tab_perfil:
     else:
         st.caption("Aún no te has inscrito en ninguna sala.")
 
-st.success("TEST 6: Fin del script")
+print("[LOG SERVIDOR] TEST 6: Fin del script", flush=True)
 
 # Cerrar sesión DB al final de la ejecución
 db.close()
