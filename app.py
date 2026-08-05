@@ -334,18 +334,74 @@ try:
     st.sidebar.markdown("---")
 
     # ---------------------------------------------------------
-    # GESTIÓN Y SELECCIÓN DE SALA ACTIVA
+    # GESTIÓN Y SELECCIÓN DE SALA ACTIVA (SOLO SALAS DEL USUARIO)
     # ---------------------------------------------------------
-    salas = db.query(Room).all()
-    if not salas:
-        def_room = Room(codigo="SALA01", nombre="Sala Principal", estado="espera", host_id=current_user.id, modo_ciego=False)
-        db.add(def_room)
-        db.commit()
-        db.refresh(def_room)
-        salas = [def_room]
+    user_players = db.query(Player).filter_by(user_id=current_user.id).all()
+    joined_room_ids = {p.room_id for p in user_players}
+    
+    hosted_rooms = db.query(Room).filter_by(host_id=current_user.id).all()
+    for hr in hosted_rooms:
+        joined_room_ids.add(hr.id)
 
-    # Determinar índice por defecto de la sala activa
-    opciones_salas = {f"{r.nombre} [{r.codigo}] ({r.estado.upper()})": r.id for r in salas}
+    my_rooms = db.query(Room).filter(Room.id.in_(joined_room_ids)).all() if joined_room_ids else []
+
+    if not my_rooms:
+        st.sidebar.header("🏠 Tus Salas")
+        st.sidebar.caption("No estás inscrito/a en ninguna sala.")
+
+        st.subheader(f"👋 ¡Bienvenido/a, **{current_user.nombre}**!")
+        st.info("Actualmente no formas parte de ninguna sala de juego. Introduce el código PIN de una sala para unirte o crea una nueva sala.")
+
+        c_join, c_create = st.tabs(["🔑 Unirme con Código PIN", "🏠 Crear Nueva Sala"])
+        with c_join:
+            pin_in = st.text_input("Código PIN de la Sala (6 caracteres)", value=url_pin if url_pin else "", key="main_pin_input")
+            if st.button("🚀 Unirme a la Sala", type="primary", use_container_width=True, key="btn_main_join_pin"):
+                if pin_in:
+                    p_clean = pin_in.strip().upper()
+                    rf = db.query(Room).filter_by(codigo=p_clean).first()
+                    if rf:
+                        pe = db.query(Player).filter_by(user_id=current_user.id, room_id=rf.id).first()
+                        if not pe:
+                            p_new = Player(user_id=current_user.id, room_id=rf.id, estado="vivo", bajas=0, cambios_restantes=1, cambios_gratuitos=1, cambios_bonus=0)
+                            db.add(p_new)
+                            db.commit()
+                        st.session_state["active_room_id"] = rf.id
+                        st.success(f"¡Te has unido a **{rf.nombre}**!")
+                        st.rerun()
+                    else:
+                        st.error("❌ Código PIN no válido o sala inexistente.")
+                else:
+                    st.warning("Escribe el código PIN.")
+
+        with c_create:
+            col_cn1, col_cn2 = st.columns(2)
+            n_nom = col_cn1.text_input("Nombre de la Sala", key="main_create_room_name")
+            n_cod = col_cn2.text_input("PIN personalizado (opcional)", key="main_create_room_pin")
+            n_cg = st.checkbox("🎭 Activar modo 'Asesino Ciego'", key="main_create_room_blind")
+            if st.button("➕ Crear e Iniciar Sala", type="primary", use_container_width=True, key="btn_main_create_room"):
+                if n_nom:
+                    c_cl = n_cod.strip().upper() if n_cod.strip() else game_logic.generar_codigo_pin(db)
+                    if db.query(Room).filter_by(codigo=c_cl).first():
+                        st.error(f"❌ Ya existe una sala con el PIN '{c_cl}'.")
+                    else:
+                        nr = Room(codigo=c_cl, nombre=n_nom.strip(), estado="espera", host_id=current_user.id, modo_ciego=n_cg)
+                        db.add(nr)
+                        db.commit()
+                        db.refresh(nr)
+                        pc = Player(user_id=current_user.id, room_id=nr.id, estado="vivo", bajas=0, cambios_restantes=1, cambios_gratuitos=1, cambios_bonus=0)
+                        db.add(pc)
+                        db.commit()
+                        st.session_state["active_room_id"] = nr.id
+                        st.success(f"🎉 Sala '{n_nom}' creada con éxito. Código PIN: **{c_cl}**.")
+                        st.rerun()
+                else:
+                    st.warning("Introduce un nombre para la sala.")
+
+        # Pausar ejecución si no hay salas
+        st.stop()
+
+    # Determinar índice por defecto de la sala activa entre tus salas
+    opciones_salas = {f"{r.nombre} [{r.codigo}] ({r.estado.upper()})": r.id for r in my_rooms}
     id_lista = list(opciones_salas.values())
 
     active_room_id_session = st.session_state.get("active_room_id")
