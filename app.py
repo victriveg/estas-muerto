@@ -28,98 +28,177 @@ except Exception:
 # ---------------------------------------------------------
 # SCRIPT DE OCULTACIÓN Y PURGA DOM PARA STREAMLIT CLOUD (TOP & PARENT FRAME)
 # ---------------------------------------------------------
-components.html("""
-<script>
-    function purgeCloudElements() {
-        const docs = [];
-        try { if (window.document) docs.push(window.document); } catch(e){}
-        try { if (window.parent && window.parent.document) docs.push(window.parent.document); } catch(e){}
-        try { if (window.top && window.top.document) docs.push(window.top.document); } catch(e){}
+if hasattr(st, "html"):
+    st.html("""
+    <script>
+        function purgeCloudElements() {
+            const docs = [];
+            try { if (window.document) docs.push(window.document); } catch(e){}
+            try { if (window.parent && window.parent.document) docs.push(window.parent.document); } catch(e){}
+            try { if (window.top && window.top.document) docs.push(window.top.document); } catch(e){}
 
-        const selectors = [
-            '._container_gzau3_1',
-            '._viewerBadge_aycw8_23',
-            '._profilePreview_gzau3_63',
-            '._profileImage_gzau3_78',
-            '[class*="_viewerBadge_"]',
-            '[class*="_container_gzau3_"]',
-            '[class*="_profilePreview_"]',
-            '[class*="_profileImage_"]',
-            '[data-testid="appCreatorAvatar"]',
-            'a[href*="streamlit.io/cloud"]',
-            'a[href*="share.streamlit.io/user"]',
-            'a[href*="share.streamlit.io"]',
-            'a[href*="streamlit.io"]',
-            'a[href*="github.com"]',
-            '[data-testid="stToolbarActionButton"]',
-            '[class*="stToolbarActionButton"]',
-            'button[aria-label*="Fork"]',
-            'button[aria-label*="GitHub"]',
-            'button[aria-label*="git"]',
-            'footer',
-            '[data-testid="stFooter"]'
-        ];
+            const selectors = [
+                '._container_gzau3_1',
+                '._viewerBadge_aycw8_23',
+                '._profilePreview_gzau3_63',
+                '._profileImage_gzau3_78',
+                '[class*="_viewerBadge_"]',
+                '[class*="_container_gzau3_"]',
+                '[class*="_profilePreview_"]',
+                '[class*="_profileImage_"]',
+                '[data-testid="appCreatorAvatar"]',
+                'a[href*="streamlit.io/cloud"]',
+                'a[href*="share.streamlit.io/user"]',
+                'a[href*="share.streamlit.io"]',
+                'a[href*="streamlit.io"]',
+                'a[href*="github.com"]',
+                '[data-testid="stToolbarActionButton"]',
+                '[class*="stToolbarActionButton"]',
+                'button[aria-label*="Fork"]',
+                'button[aria-label*="GitHub"]',
+                'button[aria-label*="git"]',
+                'footer',
+                '[data-testid="stFooter"]'
+            ];
 
-        docs.forEach(d => {
-            if (!d) return;
-            try {
-                if (!d.getElementById('purge-cloud-style')) {
-                    const s = d.createElement('style');
-                    s.id = 'purge-cloud-style';
-                    s.innerHTML = selectors.join(', ') + ' { display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; }';
-                    d.head.appendChild(s);
-                }
-            } catch(e){}
-
-            selectors.forEach(sel => {
-                try {
-                    const els = d.querySelectorAll(sel);
-                    els.forEach(el => {
-                        try { el.remove(); } catch(e) { el.style.display = 'none'; }
-                    });
-                } catch(e){}
-            });
-        });
-    }
-
-    purgeCloudElements();
-    setInterval(purgeCloudElements, 100);
-
-    // Persistencia de Sesión con localStorage para evitar cierres involuntarios de sesión
-    function syncPersistentSession() {
-        try {
-            const docs = [window.document, window.parent.document, window.top.document];
             docs.forEach(d => {
-                if (!d || !d.location) return;
-                const urlParams = new URLSearchParams(d.location.search);
-                const uParam = urlParams.get('u');
-                const logoutParam = urlParams.get('logout');
-                
-                if (logoutParam === 'true') {
-                    localStorage.removeItem('em_persistent_user_id');
-                } else if (uParam && uParam !== 'null') {
-                    localStorage.setItem('em_persistent_user_id', uParam);
-                } else {
-                    const savedUser = localStorage.getItem('em_persistent_user_id');
-                    if (savedUser && savedUser !== 'null') {
-                        urlParams.set('u', savedUser);
-                        const newUrl = d.location.pathname + '?' + urlParams.toString();
-                        d.location.replace(newUrl);
+                if (!d) return;
+                try {
+                    if (!d.getElementById('purge-cloud-style')) {
+                        const s = d.createElement('style');
+                        s.id = 'purge-cloud-style';
+                        s.innerHTML = selectors.join(', ') + ' { display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; }';
+                        d.head.appendChild(s);
                     }
-                }
-            });
-        } catch(e){}
-    }
-    syncPersistentSession();
+                } catch(e){}
 
-    // Auto-refresco automático en segundo plano cada 5 segundos de la pantalla
-    setInterval(function() {
-        try {
-            window.parent.postMessage({type: 'streamlit:rerun'}, '*');
-        } catch(e) {}
-    }, 5000);
-</script>
-""", height=0, width=0)
+                selectors.forEach(sel => {
+                    try {
+                        const els = d.querySelectorAll(sel);
+                        els.forEach(el => {
+                            try { el.remove(); } catch(e) { el.style.display = 'none'; }
+                        });
+                    } catch(e){}
+                });
+            });
+        }
+
+        purgeCloudElements();
+        setInterval(purgeCloudElements, 100);
+
+        // Persistencia de Sesión con localStorage para evitar cierres involuntarios de sesión
+        function syncPersistentSession() {
+            try {
+                const docs = [window.document, window.parent.document, window.top.document];
+                docs.forEach(d => {
+                    if (!d || !d.location) return;
+                    const urlParams = new URLSearchParams(d.location.search);
+                    const uParam = urlParams.get('u');
+                    const logoutParam = urlParams.get('logout');
+                    
+                    if (logoutParam === 'true') {
+                        localStorage.removeItem('em_persistent_user_id');
+                    } else if (uParam && uParam !== 'null') {
+                        localStorage.setItem('em_persistent_user_id', uParam);
+                    } else {
+                        const savedUser = localStorage.getItem('em_persistent_user_id');
+                        if (savedUser && savedUser !== 'null') {
+                            urlParams.set('u', savedUser);
+                            const newUrl = d.location.pathname + '?' + urlParams.toString();
+                            d.location.replace(newUrl);
+                        }
+                    }
+                });
+            } catch(e){}
+        }
+        syncPersistentSession();
+    </script>
+    """)
+else:
+    components.html("""
+    <script>
+        function purgeCloudElements() {
+            const docs = [];
+            try { if (window.document) docs.push(window.document); } catch(e){}
+            try { if (window.parent && window.parent.document) docs.push(window.parent.document); } catch(e){}
+            try { if (window.top && window.top.document) docs.push(window.top.document); } catch(e){}
+
+            const selectors = [
+                '._container_gzau3_1',
+                '._viewerBadge_aycw8_23',
+                '._profilePreview_gzau3_63',
+                '._profileImage_gzau3_78',
+                '[class*="_viewerBadge_"]',
+                '[class*="_container_gzau3_"]',
+                '[class*="_profilePreview_"]',
+                '[class*="_profileImage_"]',
+                '[data-testid="appCreatorAvatar"]',
+                'a[href*="streamlit.io/cloud"]',
+                'a[href*="share.streamlit.io/user"]',
+                'a[href*="share.streamlit.io"]',
+                'a[href*="streamlit.io"]',
+                'a[href*="github.com"]',
+                '[data-testid="stToolbarActionButton"]',
+                '[class*="stToolbarActionButton"]',
+                'button[aria-label*="Fork"]',
+                'button[aria-label*="GitHub"]',
+                'button[aria-label*="git"]',
+                'footer',
+                '[data-testid="stFooter"]'
+            ];
+
+            docs.forEach(d => {
+                if (!d) return;
+                try {
+                    if (!d.getElementById('purge-cloud-style')) {
+                        const s = d.createElement('style');
+                        s.id = 'purge-cloud-style';
+                        s.innerHTML = selectors.join(', ') + ' { display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; }';
+                        d.head.appendChild(s);
+                    }
+                } catch(e){}
+
+                selectors.forEach(sel => {
+                    try {
+                        const els = d.querySelectorAll(sel);
+                        els.forEach(el => {
+                            try { el.remove(); } catch(e) { el.style.display = 'none'; }
+                        });
+                    } catch(e){}
+                });
+            });
+        }
+
+        purgeCloudElements();
+        setInterval(purgeCloudElements, 100);
+
+        function syncPersistentSession() {
+            try {
+                const docs = [window.document, window.parent.document, window.top.document];
+                docs.forEach(d => {
+                    if (!d || !d.location) return;
+                    const urlParams = new URLSearchParams(d.location.search);
+                    const uParam = urlParams.get('u');
+                    const logoutParam = urlParams.get('logout');
+                    
+                    if (logoutParam === 'true') {
+                        localStorage.removeItem('em_persistent_user_id');
+                    } else if (uParam && uParam !== 'null') {
+                        localStorage.setItem('em_persistent_user_id', uParam);
+                    } else {
+                        const savedUser = localStorage.getItem('em_persistent_user_id');
+                        if (savedUser && savedUser !== 'null') {
+                            urlParams.set('u', savedUser);
+                            const newUrl = d.location.pathname + '?' + urlParams.toString();
+                            d.location.replace(newUrl);
+                        }
+                    }
+                });
+            } catch(e){}
+        }
+        syncPersistentSession();
+    </script>
+    """, height=0, width=0)
 
 # ---------------------------------------------------------
 # AJUSTES DE ESTILO CSS: OCULTAR GITHUB, FORK, BADGES DE STREAMLIT CLOUD Y FOOTER
