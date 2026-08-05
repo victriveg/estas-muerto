@@ -156,7 +156,8 @@ db = SessionLocal()
 
 print("[LOG SERVIDOR] TEST 3: BBDD conectada correctamente", flush=True)
 
-st.title("🔪 Estás Muerto")
+try:
+    st.title("🔪 Estás Muerto")
 
 # ---------------------------------------------------------
 # DETECCIÓN DE PARÁMETROS EN URL (?sala=CODIGO)
@@ -990,9 +991,9 @@ with tab_perfil:
                 })
         st.dataframe(pd.DataFrame(historial_salas), hide_index=True, use_container_width=True)
     else:
-        st.caption("Aún no te has inscrito en ninguna sala.")
+        print("[LOG SERVIDOR] TEST 6: Fin del script", flush=True)
 
-print("[LOG SERVIDOR] TEST 6: Fin del script", flush=True)
-
-# Cerrar sesión DB al final de la ejecución
-db.close()
+finally:
+    # Esto se ejecutará SIEMPRE, pase lo que pase, incluso si hay un st.rerun() o un error fatal.
+    db.close()
+    print("[LOG SERVIDOR] CONEXIÓN DB CERRADA Y LIBERADA", flush=True)
