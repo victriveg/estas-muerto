@@ -301,6 +301,18 @@ if not current_user:
                 st.info(f"🔑 **Claves detectadas actualmente en Secrets de Streamlit Cloud:** `{keys_found}`\n\nSi no ves `DATABASE_URL` en la lista superior, debes ir a `Settings -> Secrets` en Streamlit Cloud y guardar:\n```toml\nDATABASE_URL = \"postgresql://postgres:TU_CLAVE@db.wkqvukcszqayawzylyel.supabase.co:5432/postgres\"\n```")
         except Exception as ex:
             st.error(f"❌ Error al conectar con la base de datos: `{ex}`")
+            err_str = str(ex)
+            if "could not translate host name" in err_str or "No address associated with hostname" in err_str or "supabase.co" in err_str:
+                st.warning("""
+                ⚠️ **Causa detectada: La URL Directa de Supabase (`db.xxx.supabase.co`) es solo IPv6 y Streamlit Cloud opera en una red IPv4.**
+                
+                👉 **Solución rápida (Usar Supabase Connection Pooler en puerto 6543):**
+                1. Entra a tu proyecto en **[app.supabase.com](https://app.supabase.com)**.
+                2. Ve a **Project Settings** ➔ **Database** ➔ **Connection String**.
+                3. Cambia la opción a **Session** o **Transaction Pooler** (en formato URI).
+                4. Copia la URL que usa el servidor pooler y puerto `6543` (tendrá un formato como `postgresql://postgres.wkqvukcszqayawzylyel:TU_CLAVE@aws-0-eu-central-1.pooler.supabase.com:6543/postgres`).
+                5. Reemplaza `DATABASE_URL` en `Settings ➔ Secrets` de Streamlit Cloud con esa nueva URL.
+                """)
 
     with tab_register:
         st.subheader("📝 Crear Cuenta")
