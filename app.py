@@ -17,7 +17,7 @@ st.set_page_config(
     layout="centered"
 )
 
-print("[LOG SERVIDOR] TEST 1: App iniciada", flush=True)
+
 
 # # Refresco automático nativo cada 5 segundos en segundo plano
 # try:
@@ -146,7 +146,7 @@ button[aria-label="Menú principal"] {
 </style>
 """, unsafe_allow_html=True)
 
-print("[LOG SERVIDOR] TEST 2: Intentando conectar a la base de datos...", flush=True)
+
 
 # Inicializar tablas en la base de datos (PostgreSQL / SQLite)
 init_db()
@@ -154,7 +154,7 @@ init_db()
 # Abrir sesión de base de datos
 db = SessionLocal()
 
-print("[LOG SERVIDOR] TEST 3: BBDD conectada correctamente", flush=True)
+
 
 try:
     st.title("🔪 Estás Muerto")
@@ -170,7 +170,7 @@ try:
     # ---------------------------------------------------------
     # AUTENTICACIÓN Y GESTIÓN DE SESIÓN DE USUARIO
     # ---------------------------------------------------------
-    print("[LOG SERVIDOR] TEST 4: Entrando a la lógica de autenticación", flush=True)
+
     current_user_id = st.session_state.get("user_id")
 
     # Intentar recuperar sesión persistente desde parámetro URL si no hay sesión en memoria
@@ -186,7 +186,7 @@ try:
                 pass
 
     current_user = db.query(User).get(current_user_id) if current_user_id else None
-    print("[LOG SERVIDOR] TEST 5: Consulta a base de datos finalizada", flush=True)
+
 
     if not current_user:
         st.info("👋 Por favor inicia sesión o regístrate para acceder al panel del juego.")
@@ -993,10 +993,9 @@ try:
         else:
             st.caption("Aún no te has inscrito en ninguna sala.")
 
-    print("[LOG SERVIDOR] TEST 6: Fin del script", flush=True)
+
 
 finally:
     # Esto se ejecutará SIEMPRE, pase lo que pase, incluso si hay un st.rerun() o un error fatal.
     db.close()
-    print("[LOG SERVIDOR] CONEXIÓN DB CERRADA Y LIBERADA", flush=True)
 
