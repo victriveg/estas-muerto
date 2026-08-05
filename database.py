@@ -49,13 +49,41 @@ def get_database_url() -> str:
     return os.environ.get("DATABASE_URL", "sqlite:///./estas_muerto.db").strip()
 
 
+import urllib.parse
+
+def clean_database_url(raw_url: str) -> str:
+    """Codifica caracteres especiales en la contraseña (como + o *) y ajusta prefijos de dialecto."""
+    url = raw_url.strip()
+    if url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql://", 1)
+
+    if url.startswith("postgresql://"):
+        try:
+            parsed = urllib.parse.urlparse(url)
+            if parsed.password:
+                encoded_password = urllib.parse.quote(parsed.password, safe="")
+                user = parsed.username or ""
+                host = parsed.hostname or ""
+                port = f":{parsed.port}" if parsed.port else ""
+                netloc = f"{user}:{encoded_password}@{host}{port}"
+                url = urllib.parse.urlunparse((
+                    parsed.scheme,
+                    netloc,
+                    parsed.path,
+                    parsed.params,
+                    parsed.query,
+                    parsed.fragment
+                ))
+        except Exception:
+            pass
+    return url
+
+
 def get_engine():
     """Retorna el motor de SQLAlchemy instanciado perezosamente (lazy) cuando st.secrets está disponible."""
     global _engine
     if _engine is None:
-        url = get_database_url()
-        if url.startswith("postgres://"):
-            url = url.replace("postgres://", "postgresql://", 1)
+        url = clean_database_url(get_database_url())
 
         connect_args = {}
         if url.startswith("sqlite"):
@@ -105,11 +133,11 @@ def get_db():
 
 def init_db():
     """Crea las tablas en la base de datos si no existen y auto-migra columnas faltantes."""
-    eng = get_engine()
-    import models  # Asegura la carga de los modelos
-    Base.metadata.create_all(bind=eng)
-
     try:
+        eng = get_engine()
+        import models  # Asegura la carga de los modelos
+        Base.metadata.create_all(bind=eng)
+
         inspector = inspect(eng)
         tables = inspector.get_table_names()
 
