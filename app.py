@@ -622,61 +622,88 @@ try:
         elif player_active and player_active.estado == "muerto":
             st.error("☠️ Has sido eliminado/a de esta partida. Puedes consultar el ranking y el historial de bajas.")
 
-        # 3. OPCIÓN ADMINISTRADOR (HOST): REGISTRO DIRECTO DE ASESINATO (CON POPUP)
+        # 3. OPCIÓN ADMINISTRADOR (HOST): REGISTRO DIRECTO DE ASESINATO (CON 3 DESPLEGABLES Y POPUP)
         if is_host:
             st.markdown("---")
             st.subheader("👑 Registro Directo de Asesinato (Solo Administrador / Host)")
-            st.caption("Como Host de la sala, puedes confirmar directamente la baja de cualquier jugador sin esperar la confirmación de la víctima.")
+            st.caption("Como Host de la sala, selecciona el Asesino, el Objeto y la Víctima para registrar la baja directamente.")
 
             vivos_players = db.query(Player).filter_by(room_id=room_id, estado="vivo").all()
 
             if len(vivos_players) < 2:
                 st.warning("⚠️ Quedan menos de 2 jugadores vivos o la partida no ha comenzado.")
             else:
-                dict_vivos = {f"{p.user.nombre} ({p.user.email})": p.id for p in vivos_players}
-                asesino_sel_key = st.selectbox("Seleccionar Asesino que realizó la baja:", list(dict_vivos.keys()), key="host_sel_asesino")
-                asesino_player_id = dict_vivos[asesino_sel_key]
+                dict_asesinos = {f"{p.user.nombre} ({p.user.email})": p.id for p in vivos_players}
+                
+                # Desplegable 1: Asesino
+                asesino_sel_key = st.selectbox("1️⃣ Seleccionar Asesino:", list(dict_asesinos.keys()), key="host_sel_asesino")
+                asesino_player_id = dict_asesinos[asesino_sel_key]
 
                 asig_host = db.query(Assignment).filter_by(room_id=room_id, asesino_id=asesino_player_id).first()
+                default_victima_id = asig_host.victima_id if asig_host else None
+                default_objeto = asig_host.objeto if asig_host else None
 
-                if asig_host:
-                    victima_host = db.query(Player).get(asig_host.victima_id)
-                    st.write(f"Víctima actual: **{victima_host.user.nombre}** | Arma: **{asig_host.objeto}**")
+                # Desplegable 2: Objeto / Arma
+                objetos_disp = game_logic.obtener_objetos_disponibles(db, room_id)
+                if default_objeto and default_objeto not in objetos_disp:
+                    objetos_disp.insert(0, default_objeto)
+                
+                idx_obj = objetos_disp.index(default_objeto) if (default_objeto and default_objeto in objetos_disp) else 0
+                objeto_sel = st.selectbox("2️⃣ Seleccionar Objeto / Arma utilizada:", objetos_disp, index=idx_obj, key="host_sel_objeto")
 
-                    if st.button("⚡ Confirmar Asesinato Directo (Host)", type="primary", use_container_width=True, key="btn_host_direct_kill_trigger"):
-                        st.session_state["dialog_host_direct_kill"] = True
+                # Desplegable 3: Víctima (excluye al asesino)
+                vivos_victimas = [p for p in vivos_players if p.id != asesino_player_id]
+                dict_victimas = {f"{p.user.nombre} ({p.user.email})": p.id for p in vivos_victimas}
+                
+                keys_victimas = list(dict_victimas.keys())
+                idx_vic = 0
+                if default_victima_id:
+                    for idx, vid in enumerate(dict_victimas.values()):
+                        if vid == default_victima_id:
+                            idx_vic = idx
+                            break
 
-                    if st.session_state.get("dialog_host_direct_kill"):
-                        if hasattr(st, "dialog"):
-                            @st.dialog("❓ Confirmar Asesinato Directo (Host)")
-                            def modal_host_direct():
-                                st.write(f"¿Estás seguro/a de registrar directamente la eliminación de **{victima_host.user.nombre}** por parte de **{asig_host.asesino.user.nombre}**?")
-                                st.warning("⚠️ Esta acción es irreversible y actualizará la asignación inmediatamente.")
-                                hc1, hc2 = st.columns(2)
-                                if hc1.button("✅ Sí, Registrar Baja Directa", type="primary", use_container_width=True, key="dlg_yes_host_kill"):
-                                    st.session_state["dialog_host_direct_kill"] = False
-                                    res = game_logic.registrar_baja(db, room_id, asesino_player_id)
-                                    msg = f"🎉 ¡Baja registrada! **{victima_host.user.nombre}** ha sido eliminado/a."
-                                    if res["partida_finalizada"]:
-                                        msg += f" 🏆 ¡PARTIDA FINALIZADA! Ganador/a: **{res['ganador'].user.nombre}**"
-                                    st.session_state["msg_feedback_baja"] = msg
-                                    st.rerun()
-                                if hc2.button("❌ Cancelar", use_container_width=True, key="dlg_no_host_kill"):
-                                    st.session_state["dialog_host_direct_kill"] = False
-                                    st.rerun()
-                            modal_host_direct()
-                        else:
-                            with st.container(border=True):
-                                st.subheader("❓ Confirmar Asesinato Directo (Host)")
-                                hc1, hc2 = st.columns(2)
-                                if hc1.button("✅ Sí, Registrar Baja Directa", type="primary", use_container_width=True, key="fb_yes_host_kill"):
-                                    st.session_state["dialog_host_direct_kill"] = False
-                                    res = game_logic.registrar_baja(db, room_id, asesino_player_id)
-                                    st.session_state["msg_feedback_baja"] = f"🎉 ¡Baja registrada! **{victima_host.user.nombre}** ha sido eliminado/a."
-                                    st.rerun()
-                                if hc2.button("❌ Cancelar", use_container_width=True, key="fb_no_host_kill"):
-                                    st.session_state["dialog_host_direct_kill"] = False
-                                    st.rerun()
+                victima_sel_key = st.selectbox("3️⃣ Seleccionar Víctima:", keys_victimas, index=idx_vic, key="host_sel_victima")
+                victima_player_id = dict_victimas[victima_sel_key]
+
+                if st.button("⚡ Registrar Asesinato Directo (Host)", type="primary", use_container_width=True, key="btn_host_direct_kill_trigger"):
+                    st.session_state["dialog_host_direct_kill"] = True
+
+                if st.session_state.get("dialog_host_direct_kill"):
+                    asesino_p = db.query(Player).get(asesino_player_id)
+                    victima_p = db.query(Player).get(victima_player_id)
+
+                    if hasattr(st, "dialog"):
+                        @st.dialog("❓ Confirmar Asesinato Directo (Host)")
+                        def modal_host_direct():
+                            st.write(f"¿Estás seguro/a de registrar el asesinato de **{victima_p.user.nombre}** a manos de **{asesino_p.user.nombre}** con el objeto **{objeto_sel}**?")
+                            st.warning("⚠️ Esta acción es irreversible y eliminará a la víctima de la partida.")
+                            hc1, hc2 = st.columns(2)
+                            if hc1.button("✅ Sí, Registrar Baja Directa", type="primary", use_container_width=True, key="dlg_yes_host_kill"):
+                                st.session_state["dialog_host_direct_kill"] = False
+                                res = game_logic.registrar_baja_host(db, room_id, asesino_player_id, victima_player_id, objeto_sel)
+                                msg = f"🎉 ¡Baja registrada! **{victima_p.user.nombre}** ha sido eliminado/a por **{asesino_p.user.nombre}** con **{objeto_sel}**."
+                                if res and res.get("partida_finalizada"):
+                                    msg += f" 🏆 ¡PARTIDA FINALIZADA! Ganador/a: **{res['ganador'].user.nombre}**"
+                                st.session_state["msg_feedback_baja"] = msg
+                                st.rerun()
+                            if hc2.button("❌ Cancelar", use_container_width=True, key="dlg_no_host_kill"):
+                                st.session_state["dialog_host_direct_kill"] = False
+                                st.rerun()
+                        modal_host_direct()
+                    else:
+                        with st.container(border=True):
+                            st.subheader("❓ Confirmar Asesinato Directo (Host)")
+                            st.write(f"¿Estás seguro/a de registrar el asesinato de **{victima_p.user.nombre}** a manos de **{asesino_p.user.nombre}** con **{objeto_sel}**?")
+                            hc1, hc2 = st.columns(2)
+                            if hc1.button("✅ Sí, Registrar Baja Directa", type="primary", use_container_width=True, key="fb_yes_host_kill"):
+                                st.session_state["dialog_host_direct_kill"] = False
+                                res = game_logic.registrar_baja_host(db, room_id, asesino_player_id, victima_player_id, objeto_sel)
+                                st.session_state["msg_feedback_baja"] = f"🎉 ¡Baja registrada! **{victima_p.user.nombre}** ha sido eliminado/a."
+                                st.rerun()
+                            if hc2.button("❌ Cancelar", use_container_width=True, key="fb_no_host_kill"):
+                                st.session_state["dialog_host_direct_kill"] = False
+                                st.rerun()
 
         # =========================================================
         # SECCIÓN: CAMBIO INDIVIDUAL DE ARMA

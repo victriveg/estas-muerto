@@ -218,6 +218,29 @@ def registrar_baja(db: Session, room_id: int, asesino_player_id: int) -> dict:
         raise
 
 
+def registrar_baja_host(db: Session, room_id: int, asesino_player_id: int, victima_player_id: int, objeto_usado: str) -> dict:
+    """
+    Permite al Host registrar un asesinato de forma directa especificando 
+    Asesino, Víctima y Objeto.
+    Ajusta la asignación antes de procesar la baja si la víctima u objeto difieren del ciclo actual.
+    """
+    asig_asesino = db.query(Assignment).filter_by(room_id=room_id, asesino_id=asesino_player_id).first()
+    if not asig_asesino:
+        raise ValueError("El asesino seleccionado no tiene una asignación activa en esta sala.")
+
+    # Si el Host seleccionó una víctima u objeto diferente al ciclo actual, ajustamos la asignación
+    if asig_asesino.victima_id != victima_player_id or asig_asesino.objeto != objeto_usado:
+        asig_asesino.victima_id = victima_player_id
+        asig_asesino.objeto = objeto_usado
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
+
+    return registrar_baja(db, room_id, asesino_player_id)
+
+
 def ejecutar_cambio_arma(db: Session, room_id: int, player_id: int, es_host: bool = False) -> tuple[str, int]:
     """
     Ejecuta el cambio de arma individual para un jugador en una sala.
