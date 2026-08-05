@@ -8,10 +8,11 @@ from models import Room, Player, Assignment, GameObject, HistoryLog, KillClaim
 def generar_codigo_pin(db: Session) -> str:
     """Genera un código PIN aleatorio de 6 caracteres alfanuméricos único en la base de datos."""
     chars = string.ascii_uppercase + string.digits
-    while True:
+    for _ in range(100):
         pin = "".join(random.choices(chars, k=6))
         if not db.query(Room).filter_by(codigo=pin).first():
             return pin
+    raise RuntimeError("No se pudo generar un PIN único tras 100 intentos.")
 
 
 

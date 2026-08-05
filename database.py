@@ -122,6 +122,22 @@ def SessionLocal():
     return _SessionFactory()
 
 
+from contextlib import contextmanager
+
+@contextmanager
+def get_db_session():
+    """Context manager para operaciones de base de datos con rollback automático y cierre garantizado."""
+    db = SessionLocal()
+    try:
+        yield db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
 def get_db():
     """Generador de sesiones de base de datos para context manager."""
     db = SessionLocal()
