@@ -85,121 +85,9 @@ if hasattr(st, "html"):
         }
 
         purgeCloudElements();
-        setInterval(purgeCloudElements, 100);
-
-        // Persistencia de Sesión con localStorage para evitar cierres involuntarios de sesión
-        function syncPersistentSession() {
-            try {
-                const docs = [window.document, window.parent.document, window.top.document];
-                docs.forEach(d => {
-                    if (!d || !d.location) return;
-                    const urlParams = new URLSearchParams(d.location.search);
-                    const uParam = urlParams.get('u');
-                    const logoutParam = urlParams.get('logout');
-                    
-                    if (logoutParam === 'true') {
-                        localStorage.removeItem('em_persistent_user_id');
-                    } else if (uParam && uParam !== 'null') {
-                        localStorage.setItem('em_persistent_user_id', uParam);
-                    } else {
-                        const savedUser = localStorage.getItem('em_persistent_user_id');
-                        if (savedUser && savedUser !== 'null') {
-                            urlParams.set('u', savedUser);
-                            const newUrl = d.location.pathname + '?' + urlParams.toString();
-                            d.location.replace(newUrl);
-                        }
-                    }
-                });
-            } catch(e){}
-        }
-        syncPersistentSession();
+        setInterval(purgeCloudElements, 200);
     </script>
     """)
-else:
-    components.html("""
-    <script>
-        function purgeCloudElements() {
-            const docs = [];
-            try { if (window.document) docs.push(window.document); } catch(e){}
-            try { if (window.parent && window.parent.document) docs.push(window.parent.document); } catch(e){}
-            try { if (window.top && window.top.document) docs.push(window.top.document); } catch(e){}
-
-            const selectors = [
-                '._container_gzau3_1',
-                '._viewerBadge_aycw8_23',
-                '._profilePreview_gzau3_63',
-                '._profileImage_gzau3_78',
-                '[class*="_viewerBadge_"]',
-                '[class*="_container_gzau3_"]',
-                '[class*="_profilePreview_"]',
-                '[class*="_profileImage_"]',
-                '[data-testid="appCreatorAvatar"]',
-                'a[href*="streamlit.io/cloud"]',
-                'a[href*="share.streamlit.io/user"]',
-                'a[href*="share.streamlit.io"]',
-                'a[href*="streamlit.io"]',
-                'a[href*="github.com"]',
-                '[data-testid="stToolbarActionButton"]',
-                '[class*="stToolbarActionButton"]',
-                'button[aria-label*="Fork"]',
-                'button[aria-label*="GitHub"]',
-                'button[aria-label*="git"]',
-                'footer',
-                '[data-testid="stFooter"]'
-            ];
-
-            docs.forEach(d => {
-                if (!d) return;
-                try {
-                    if (!d.getElementById('purge-cloud-style')) {
-                        const s = d.createElement('style');
-                        s.id = 'purge-cloud-style';
-                        s.innerHTML = selectors.join(', ') + ' { display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; }';
-                        d.head.appendChild(s);
-                    }
-                } catch(e){}
-
-                selectors.forEach(sel => {
-                    try {
-                        const els = d.querySelectorAll(sel);
-                        els.forEach(el => {
-                            try { el.remove(); } catch(e) { el.style.display = 'none'; }
-                        });
-                    } catch(e){}
-                });
-            });
-        }
-
-        purgeCloudElements();
-        setInterval(purgeCloudElements, 100);
-
-        function syncPersistentSession() {
-            try {
-                const docs = [window.document, window.parent.document, window.top.document];
-                docs.forEach(d => {
-                    if (!d || !d.location) return;
-                    const urlParams = new URLSearchParams(d.location.search);
-                    const uParam = urlParams.get('u');
-                    const logoutParam = urlParams.get('logout');
-                    
-                    if (logoutParam === 'true') {
-                        localStorage.removeItem('em_persistent_user_id');
-                    } else if (uParam && uParam !== 'null') {
-                        localStorage.setItem('em_persistent_user_id', uParam);
-                    } else {
-                        const savedUser = localStorage.getItem('em_persistent_user_id');
-                        if (savedUser && savedUser !== 'null') {
-                            urlParams.set('u', savedUser);
-                            const newUrl = d.location.pathname + '?' + urlParams.toString();
-                            d.location.replace(newUrl);
-                        }
-                    }
-                });
-            } catch(e){}
-        }
-        syncPersistentSession();
-    </script>
-    """, height=0, width=0)
 
 # ---------------------------------------------------------
 # AJUSTES DE ESTILO CSS: OCULTAR GITHUB, FORK, BADGES DE STREAMLIT CLOUD Y FOOTER
@@ -317,12 +205,13 @@ if not current_user:
             if e_clean and p_clean:
                 u = auth.authenticate_user(db, e_clean, p_clean)
                 if u:
-                    st.session_state["user_id"] = u.id
-                    st.query_params["u"] = str(u.id)
-                    if "logout" in st.query_params:
-                        st.query_params.pop("logout", None)
-                    st.success(f"¡Bienvenido/a de nuevo, **{u.nombre}**!")
-                    st.rerun()
+                    if st.session_state.get("user_id") != u.id:
+                        st.session_state["user_id"] = u.id
+                        st.query_params["u"] = str(u.id)
+                        if "logout" in st.query_params:
+                            st.query_params.pop("logout", None)
+                        st.success(f"¡Bienvenido/a de nuevo, **{u.nombre}**!")
+                        st.rerun()
                 else:
                     st.error("❌ Correo electrónico o contraseña incorrectos.")
             else:
@@ -387,12 +276,13 @@ if not current_user:
             else:
                 try:
                     u = auth.register_user(db, name_clean, email_clean, pass_clean)
-                    st.session_state["user_id"] = u.id
-                    st.query_params["u"] = str(u.id)
-                    if "logout" in st.query_params:
-                        st.query_params.pop("logout", None)
-                    st.success(f"¡Cuenta creada con éxito! Bienvenido/a, **{u.nombre}**.")
-                    st.rerun()
+                    if st.session_state.get("user_id") != u.id:
+                        st.session_state["user_id"] = u.id
+                        st.query_params["u"] = str(u.id)
+                        if "logout" in st.query_params:
+                            st.query_params.pop("logout", None)
+                        st.success(f"¡Cuenta creada con éxito! Bienvenido/a, **{u.nombre}**.")
+                        st.rerun()
                 except Exception as e:
                     st.error(f"Error al registrar: {e}")
 
