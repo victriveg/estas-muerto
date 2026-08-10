@@ -1074,8 +1074,24 @@ try:
                         st.rerun()
                     except Exception as e:
                         st.error(f"Error al iniciar partida: {e}")
-                else:
-                    st.warning(f"🔒 El inicio de la partida requiere permisos de Host. Contacta a **{host_nombre}** para iniciar la partida.")
+
+                vivos_partida = db.query(Player).filter_by(room_id=room_id, estado="vivo").all()
+                solo_un_vivo = (len(vivos_partida) == 1 and room_actual.estado == "en_juego")
+
+                if st.button("🏆 FINALIZAR PARTIDA", use_container_width=True, disabled=not solo_un_vivo, key="btn_finalizar_partida_host"):
+                    if solo_un_vivo:
+                        ganador_p = vivos_partida[0]
+                        room_actual.estado = "finalizada"
+                        db.query(Assignment).filter_by(room_id=room_id).delete()
+                        db.query(KillClaim).filter_by(room_id=room_id).delete()
+                        db.commit()
+                        st.success(f"🏆 ¡PARTIDA FINALIZADA! El ganador/a absoluto/a es **{ganador_p.user.nombre}**.")
+                        st.balloons()
+                        st.rerun()
+                    else:
+                        st.warning("⚠️ La partida solo se puede finalizar cuando únicamente quede 1 jugador vivo.")
+            else:
+                st.warning(f"🔒 El inicio o finalización de la partida requiere permisos de Host. Contacta a **{host_nombre}** para gestionar la partida.")
 
 
 
