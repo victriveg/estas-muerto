@@ -156,7 +156,7 @@ def ejecutar_rotacion_sala(db: Session, room_id: int) -> list[Assignment]:
 
 def calcular_proxima_rotacion(room: Room) -> datetime | None:
     """
-    Calcula la fecha y hora de la próxima rotación (cada 3 días a las 8:00 AM) 
+    Calcula la fecha y hora de la próxima rotación (cada 2 días a las 8:00 AM) 
     basada en la fecha de la última rotación o inicio de partida.
     """
     if room.estado != "en_juego":
@@ -166,7 +166,7 @@ def calcular_proxima_rotacion(room: Room) -> datetime | None:
     if not base_dt:
         return None
 
-    target_dt = base_dt + timedelta(days=3)
+    target_dt = base_dt + timedelta(days=2)
     proxima_8am = target_dt.replace(hour=8, minute=0, second=0, microsecond=0)
     
     if proxima_8am <= base_dt:
@@ -177,7 +177,7 @@ def calcular_proxima_rotacion(room: Room) -> datetime | None:
 
 def verificar_rotacion_automatica(db: Session, room_id: int) -> bool:
     """
-    Comprueba si se debe ejecutar la rotación automática (cada 3 días a las 8:00 AM).
+    Comprueba si se debe ejecutar la rotación automática (cada 2 días a las 8:00 AM).
     Si corresponde, la ejecuta y devuelve True.
     """
     room = db.query(Room).get(room_id)

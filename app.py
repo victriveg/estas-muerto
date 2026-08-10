@@ -424,11 +424,11 @@ try:
         db.commit()
 
     # ---------------------------------------------------------
-    # VERIFICACIÓN DE ROTACIÓN AUTOMÁTICA CADA 3 DÍAS A LAS 8:00 AM
+    # VERIFICACIÓN DE ROTACIÓN AUTOMÁTICA CADA 2 DÍAS A LAS 8:00 AM
     # ---------------------------------------------------------
     auto_rotated = game_logic.verificar_rotacion_automatica(db, room_id)
     if auto_rotated:
-        st.success("🔄 **¡ROTACIÓN AUTOMÁTICA EJECUTADA!** Al cumplirse 3 días (8:00 AM), se han reordenado los objetivos y armas de esta sala.")
+        st.success("🔄 **¡ROTACIÓN AUTOMÁTICA EJECUTADA!** Al cumplirse 2 días (8:00 AM), se han reordenado los objetivos y armas de esta sala.")
 
     host_nombre = room_actual.host.nombre if room_actual.host else "Sin Host"
     proxima_rot = game_logic.calcular_proxima_rotacion(room_actual)
@@ -851,7 +851,7 @@ try:
         # =========================================================
         st.markdown("---")
         st.subheader("🔄 Rotación Periódica General")
-        st.info(f"⏱️ **Próxima rotación automática programada:** `{proxima_rot_str}` (Cada 3 días a las 8:00 AM).")
+        st.info(f"⏱️ **Próxima rotación automática programada:** `{proxima_rot_str}` (Cada 2 días a las 8:00 AM).")
 
         if is_host:
             if st.button("🔀 Ejecutar Rotación Manual de Sala", type="primary", use_container_width=True):
@@ -872,7 +872,7 @@ try:
             else:
                 st.warning(f"ℹ️ El creador y administrador de esta sala es **{host_nombre}**. Tu rol actual es participante.")
 
-            st.info(f"📢 **Comparte esta sala con tus amigos:**\n\n🔑 **Código PIN:** `{room_actual.codigo}`\n\n⏱️ **Rotación Programada:** Cada 3 días a las 8:00 AM (Próxima: `{proxima_rot_str}`)")
+            st.info(f"📢 **Comparte esta sala con tus amigos:**\n\n🔑 **Código PIN:** `{room_actual.codigo}`\n\n⏱️ **Rotación Programada:** Cada 2 días a las 8:00 AM (Próxima: `{proxima_rot_str}`)")
 
             # Ajuste del Modo Asesino Ciego para el Host
             if is_host:
