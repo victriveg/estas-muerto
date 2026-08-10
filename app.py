@@ -856,16 +856,11 @@ try:
         if is_host:
             if st.button("🔀 Ejecutar Rotación Manual de Sala", type="primary", use_container_width=True):
                 try:
-                    asignaciones = game_logic.generar_ciclo_cerrado(db, room_id)
-                    st.success("✅ ¡Rotación realizada correctamente!")
+                    asignaciones = game_logic.ejecutar_rotacion_sala(db, room_id)
+                    st.success("✅ ¡Rotación realizada correctamente entre los supervivientes!")
                     st.rerun()
                 except Exception as e:
-                    st.error(f"Error en la rotación: {e}")
-
-                    st.success("📩 Notificaciones de rotación enviadas a todos los supervivientes.")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Error al rotar sala: {e}")
+                    st.error(f"Error al rotar la sala: {e}")
 
     # =========================================================
     # PESTAÑA 3: CONFIGURACIÓN / SETUP
