@@ -27,23 +27,35 @@ def obtener_objetos_disponibles(db: Session, room_id: int) -> list[str]:
 def generar_ciclo_cerrado(db: Session, room_id: int) -> list[Assignment]:
     """
     Genera un ciclo Hamiltoniano (P1 -> P2 -> ... -> Pn -> P1) 
-    para todos los jugadores 'vivos' de la sala especificada (room_id).
+    para todos los participantes de la sala especificada (room_id).
+    Revive a todos los participantes pasando su estado de 'muerto' a 'vivo'.
     """
-    # 1. Obtener jugadores vivos de la sala
-    vivos = db.query(Player).filter_by(room_id=room_id, estado="vivo").all()
-    if len(vivos) < 2:
-        raise ValueError("Se necesitan al menos 2 jugadores vivos en la sala para iniciar.")
+    # 1. Obtener todos los jugadores de la sala y pasarlos de 'muerto' a 'vivo'
+    todos_jugadores = db.query(Player).filter_by(room_id=room_id).all()
+    if len(todos_jugadores) < 2:
+        raise ValueError("Se necesitan al menos 2 jugadores en la sala para iniciar.")
+
+    for p in todos_jugadores:
+        p.estado = "vivo"
+        p.fecha_eliminacion = None
+        p.bajas = 0
+        if hasattr(p, "cambios_gratuitos"):
+            p.cambios_gratuitos = 1
+        if hasattr(p, "cambios_bonus"):
+            p.cambios_bonus = 0
+        p.cambios_restantes = 1
 
     # 2. Obtener catálogo de armas
     objetos = obtener_objetos_disponibles(db, room_id)
     if not objetos:
         raise ValueError("No hay objetos/armas registrados para esta sala.")
 
-    # 3. Eliminar asignaciones previas de la sala
+    # 3. Eliminar asignaciones y solicitudes de baja previas de la sala
     db.query(Assignment).filter_by(room_id=room_id).delete()
+    db.query(KillClaim).filter_by(room_id=room_id).delete()
 
     # 4. Barajar jugadores
-    vivos_shuffled = vivos.copy()
+    vivos_shuffled = todos_jugadores.copy()
     random.shuffle(vivos_shuffled)
     n = len(vivos_shuffled)
 
@@ -69,17 +81,10 @@ def generar_ciclo_cerrado(db: Session, room_id: int) -> list[Assignment]:
         db.add(asig)
         nuevas_asignaciones.append(asig)
 
-    # Actualizar estado de la sala y restaurar 1 reroll gratuito a supervivientes (máximo 1)
+    # Actualizar estado de la sala
     room = db.query(Room).get(room_id)
     if room:
-        if room.estado == "en_juego":
-            for p_v in vivos:
-                if getattr(p_v, "cambios_gratuitos", 0) < 1:
-                    p_v.cambios_gratuitos = 1
-                p_v.cambios_restantes = (p_v.cambios_gratuitos or 0) + (getattr(p_v, "cambios_bonus", 0) or 0)
-        else:
-            room.estado = "en_juego"
-
+        room.estado = "en_juego"
         now = datetime.utcnow()
         if not room.fecha_inicio:
             room.fecha_inicio = now
