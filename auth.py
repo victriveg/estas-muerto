@@ -132,6 +132,7 @@ def obtener_estadisticas_usuario(db: Session, user_id: int) -> dict:
     has_ace = False
     has_relampago = False
     has_loser = False
+    has_serial_killer = False
 
     for p in players:
         room = db.query(Room).get(p.room_id)
@@ -191,6 +192,16 @@ def obtener_estadisticas_usuario(db: Session, user_id: int) -> dict:
                 if 0 <= diff_sec <= 86400: # 24 horas
                     has_loser = True
 
+    # 5. Serial Killer (3 personas eliminadas en un lapso inferior a 24 horas)
+    player_ids = [p.id for p in players]
+    if player_ids:
+        all_user_logs = db.query(HistoryLog).filter(HistoryLog.asesino_id.in_(player_ids)).order_by(HistoryLog.fecha.asc()).all()
+        if len(all_user_logs) >= 3:
+            for i in range(len(all_user_logs) - 2):
+                if (all_user_logs[i + 2].fecha - all_user_logs[i].fecha).total_seconds() <= 86400:
+                    has_serial_killer = True
+                    break
+
     insignias = [
         # Logros Base
         {
@@ -244,6 +255,11 @@ def obtener_estadisticas_usuario(db: Session, user_id: int) -> dict:
             "nombre": "🔥 Killing Spree",
             "descripcion": "Elimina a 2 o más jugadores en un mismo día en cualquier sala.",
             "desbloqueado": has_killing_spree
+        },
+        {
+            "nombre": "🩸 Serial Killer",
+            "descripcion": "Elimina a 3 o más personas en un lapso inferior a 24 horas.",
+            "desbloqueado": has_serial_killer
         },
         {
             "nombre": "⚔️ Doublekill",
