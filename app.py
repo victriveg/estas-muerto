@@ -883,6 +883,30 @@ try:
                     st.success(f"Modo Asesino Ciego {'activado' if new_ciego else 'desactivado'}.")
                     st.rerun()
 
+                st.markdown("---")
+                st.subheader("🎲 Restablecer Reroll Gratuito a un Jugador (Solo Host)")
+                st.caption("Selecciona un jugador que haya agotado sus cambios de arma gratuitos para concederle 1 nuevo reroll.")
+
+                sin_reroll_players = db.query(Player).filter(
+                    (Player.room_id == room_id) & 
+                    ((Player.cambios_gratuitos == 0) | (Player.cambios_gratuitos == None))
+                ).all()
+
+                if sin_reroll_players:
+                    dict_sin_reroll = {f"{p.user.nombre} ({p.user.email}) - {p.estado.upper()}": p.id for p in sin_reroll_players}
+                    sel_p_key = st.selectbox("Jugadores con 0 rerolls gratuitos:", list(dict_sin_reroll.keys()), key="host_sel_restore_reroll")
+                    sel_p_id = dict_sin_reroll[sel_p_key]
+
+                    if st.button("🎲 Restablecer Reroll Gratuito", type="primary", use_container_width=True, key="btn_restore_reroll_action"):
+                        try:
+                            p_res = game_logic.restablecer_reroll_gratuito(db, room_id, sel_p_id)
+                            st.success(f"✅ ¡Se ha concedido 1 reroll gratuito a **{p_res.user.nombre}**!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error al restablecer reroll: {e}")
+                else:
+                    st.info("ℹ️ Todos los jugadores inscritos en esta sala disponen de rerolls gratuitos activos actualmente.")
+
             # Botón directo para que el usuario autenticado se una a esta sala
             if not player_active:
                 st.info(f"💡 No estás inscrito en la sala **{room_actual.nombre}**.")

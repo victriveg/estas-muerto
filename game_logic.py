@@ -326,9 +326,10 @@ def ejecutar_cambio_arma(db: Session, room_id: int, player_id: int, es_host: boo
     if not objetos:
         raise ValueError("No hay objetos disponibles en el catálogo.")
 
-    # Excluir objeto actual
-    disponibles = [o for o in objetos if o != asig.objeto]
-    nuevo_objeto = random.choice(disponibles) if disponibles else random.choice(objetos)
+    # Excluir estricta y limpiamente el objeto actual
+    current_obj_str = (asig.objeto or "").strip().lower()
+    disponibles = [o for o in objetos if o.strip().lower() != current_obj_str]
+    nuevo_objeto = random.choice(disponibles) if disponibles else (objetos[0] if objetos else asig.objeto)
 
     # Actualizar asignación y descontar primero el cambio gratuito, luego bonus
     asig.objeto = nuevo_objeto
@@ -347,6 +348,26 @@ def ejecutar_cambio_arma(db: Session, room_id: int, player_id: int, es_host: boo
     try:
         db.commit()
         return nuevo_objeto, player.cambios_restantes
+    except Exception:
+        db.rollback()
+        raise
+
+
+def restablecer_reroll_gratuito(db: Session, room_id: int, player_id: int) -> Player:
+    """
+    Restablece 1 cambio/reroll gratuito de arma a un jugador de la sala (exclusivo para el Host).
+    """
+    player = db.query(Player).filter_by(id=player_id, room_id=room_id).first()
+    if not player:
+        raise ValueError("El jugador no existe en esta sala.")
+
+    player.cambios_gratuitos = 1
+    player.cambios_restantes = (player.cambios_gratuitos or 1) + (getattr(player, "cambios_bonus", 0) or 0)
+
+    try:
+        db.commit()
+        db.refresh(player)
+        return player
     except Exception:
         db.rollback()
         raise

@@ -183,7 +183,7 @@ def obtener_estadisticas_usuario(db: Session, user_id: int) -> dict:
                         has_relampago = True
                         break
 
-        # 4. Looser (eliminado en menos de 24h desde que se unió a la sala)
+        # 4. Loser (eliminado en menos de 24h desde que se unió a la sala)
         if p.estado == "muerto" and p.fecha_eliminacion:
             p_created = getattr(p, "created_at", None) or (room.created_at if room else None)
             if p_created:
@@ -281,7 +281,7 @@ def obtener_estadisticas_usuario(db: Session, user_id: int) -> dict:
             "desbloqueado": has_relampago
         },
         {
-            "nombre": "💀 Looser",
+            "nombre": "💀 Loser",
             "descripcion": "Sé eliminado en menos de 24 horas desde que te uniste a la sala.",
             "desbloqueado": has_loser
         }
